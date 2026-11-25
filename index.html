@@ -1,0 +1,4421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#091224" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>SLIPWAY 3D — Nocturnal Harbor</title>
+  <!-- Primary Three.js r128 CDN (with automatic jsDelivr fallback in script) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <style>
+    /* =========================================================================
+       SLIPWAY 3D: NOCTURNAL HARBOR — Editorial Frosted-Glass Mobile UI
+       ========================================================================= */
+    :root {
+      --accent: #F5C77E;
+      --accent-dark: #C89448;
+      --glass-bg: rgba(9, 17, 32, 0.78);
+      --glass-card: rgba(13, 23, 40, 0.96);
+      --border-subtle: rgba(255, 255, 255, 0.12);
+      --border-accent: rgba(245, 199, 126, 0.42);
+      --text-primary: #F5F0E6;
+      --text-muted: #9FAEC2;
+      --font-serif: Georgia, "Palatino Linotype", "Book Antiqua", Palatino, serif;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      height: 100dvh;
+      overflow: hidden;
+      background: #070E1B;
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+    }
+
+    #viewport {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      height: 100dvh;
+      overflow: hidden;
+    }
+
+    /* Full-bleed WebGL Canvas */
+    #webgl-canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+      cursor: grab;
+    }
+
+    #webgl-canvas:active {
+      cursor: grabbing;
+    }
+
+    /* Non-blocking Fullscreen Overlay Layers */
+    #floating-labels,
+    #fx-layer,
+    #toast-layer {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      overflow: hidden;
+    }
+
+    #floating-labels { z-index: 15; }
+    #fx-layer { z-index: 18; }
+    #toast-layer {
+      z-index: 60;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding-bottom: max(96px, calc(84px + env(safe-area-inset-bottom)));
+    }
+
+    /* Projected 3D Badges */
+    .lock-badge {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: rgba(20, 15, 11, 0.94);
+      border: 1.5px solid var(--accent);
+      color: var(--accent);
+      font-size: 11.5px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6), 0 0 10px rgba(245, 199, 126, 0.35);
+    }
+
+    .reserve-tag {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      padding: 3px 9px;
+      border-radius: 999px;
+      background: rgba(10, 18, 32, 0.8);
+      border: 1px dashed rgba(245, 199, 126, 0.62);
+      color: var(--accent);
+      font-size: 9.5px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      white-space: nowrap;
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+    }
+
+    .symbol-badge {
+      position: absolute;
+      transform: translate(-50%, -50%);
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid rgba(255, 255, 255, 0.95);
+      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.65);
+    }
+
+    .symbol-badge.queue-badge {
+      width: 19px;
+      height: 19px;
+      border-width: 1.5px;
+    }
+
+    .symbol-badge svg {
+      width: 13px;
+      height: 13px;
+      display: block;
+    }
+
+    .symbol-badge.queue-badge svg {
+      width: 10px;
+      height: 10px;
+    }
+
+    /* =========================================================================
+       HUD LAYER (Container pointer-events: none; interactive buttons auto)
+       ========================================================================= */
+    #hud {
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    #hud.visible {
+      opacity: 1;
+    }
+
+    .top-hud {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+      padding: max(12px, env(safe-area-inset-top)) 14px 16px 14px;
+      pointer-events: none;
+      background: linear-gradient(180deg, rgba(6, 12, 24, 0.72) 0%, rgba(6, 12, 24, 0) 100%);
+    }
+
+    .hud-left {
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      min-width: 0;
+      max-width: 62%;
+    }
+
+    .harbor-row {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+
+    .harbor-title {
+      font-family: var(--font-serif);
+      font-size: 17px;
+      font-weight: 400;
+      letter-spacing: 0.03em;
+      color: var(--text-primary);
+      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.65);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .mode-pill {
+      font-size: 9.5px;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--accent);
+      background: rgba(11, 20, 36, 0.78);
+      border: 1px solid rgba(245, 199, 126, 0.36);
+      padding: 2px 7px;
+      border-radius: 999px;
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      flex-shrink: 0;
+    }
+
+    .progress-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .progress-track {
+      width: 118px;
+      height: 4px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.16);
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, var(--accent-dark), var(--accent));
+      box-shadow: 0 0 8px rgba(245, 199, 126, 0.6);
+      transition: width 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .progress-text {
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+      color: var(--text-muted);
+      text-shadow: 0 1px 6px rgba(0, 0, 0, 0.75);
+    }
+
+    .hud-right {
+      pointer-events: auto;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .icon-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      border: 1px solid var(--border-subtle);
+      background: var(--glass-bg);
+      color: var(--text-primary);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      touch-action: manipulation;
+      padding: 0;
+      outline: none;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.34);
+      transition: transform 0.14s ease, border-color 0.2s ease, background 0.2s ease;
+    }
+
+    .icon-btn:active {
+      transform: scale(0.9);
+      border-color: var(--border-accent);
+      background: rgba(245, 199, 126, 0.2);
+    }
+
+    .icon-btn svg {
+      width: 17px;
+      height: 17px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      pointer-events: none;
+    }
+
+    .bottom-wrap {
+      display: flex;
+      justify-content: center;
+      padding: 8px 14px max(14px, env(safe-area-inset-bottom)) 14px;
+      pointer-events: none;
+      background: linear-gradient(0deg, rgba(6, 12, 24, 0.74) 0%, rgba(6, 12, 24, 0) 100%);
+    }
+
+    .bottom-dock {
+      pointer-events: auto;
+      width: 100%;
+      max-width: 420px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      padding: 6px;
+      border-radius: 18px;
+      background: var(--glass-bg);
+      border: 1px solid var(--border-subtle);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+    }
+
+    .dock-btn {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      padding: 8px 4px;
+      border-radius: 12px;
+      border: 1px solid transparent;
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text-primary);
+      font-size: 10.5px;
+      font-weight: 500;
+      letter-spacing: 0.03em;
+      cursor: pointer;
+      touch-action: manipulation;
+      outline: none;
+      transition: transform 0.14s ease, background 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
+    }
+
+    .dock-btn:active:not(:disabled) {
+      transform: scale(0.93);
+      background: rgba(245, 199, 126, 0.18);
+      border-color: var(--border-accent);
+    }
+
+    .dock-btn:disabled {
+      opacity: 0.34;
+      cursor: default;
+    }
+
+    .dock-btn.active-mode {
+      background: rgba(245, 199, 126, 0.16);
+      border-color: rgba(245, 199, 126, 0.48);
+      color: var(--accent);
+    }
+
+    .dock-btn svg {
+      width: 17px;
+      height: 17px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      pointer-events: none;
+    }
+
+    .daily-dot {
+      position: absolute;
+      top: 5px;
+      right: 12px;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #00D44B;
+      box-shadow: 0 0 6px #00D44B;
+      display: none;
+    }
+
+    .daily-dot.done {
+      display: block;
+    }
+
+    /* Toast Pill */
+    #toast {
+      background: rgba(10, 19, 34, 0.94);
+      border: 1px solid rgba(245, 199, 126, 0.4);
+      color: var(--text-primary);
+      font-size: 12px;
+      letter-spacing: 0.03em;
+      padding: 8px 16px;
+      border-radius: 999px;
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55);
+      opacity: 0;
+      transform: translateY(14px);
+      transition: opacity 0.24s ease, transform 0.24s ease;
+      white-space: nowrap;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+
+    #toast.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* =========================================================================
+       TITLE SCREEN & MODALS (Strict display: none when closed, top z-index)
+       ========================================================================= */
+    #title-screen {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      pointer-events: auto;
+      background: rgba(5, 10, 20, 0.72);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 5000;
+      pointer-events: auto;
+      background: rgba(5, 10, 20, 0.72);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .modal-backdrop.open {
+      display: flex;
+    }
+
+    .modal-card {
+      position: relative;
+      z-index: 10000;
+      width: 100%;
+      max-width: 360px;
+      background: linear-gradient(165deg, rgba(19, 32, 54, 0.97) 0%, rgba(10, 18, 33, 0.99) 100%);
+      border: 1px solid rgba(245, 199, 126, 0.34);
+      border-radius: 24px;
+      padding: 26px 22px 22px 22px;
+      text-align: center;
+      box-shadow: 0 28px 64px rgba(0, 0, 0, 0.72);
+      max-height: 86dvh;
+      overflow-y: auto;
+      pointer-events: auto;
+    }
+
+    .eyebrow {
+      font-size: 10px;
+      letter-spacing: 0.26em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+
+    .brand-title {
+      font-family: var(--font-serif);
+      font-size: 32px;
+      font-weight: 400;
+      letter-spacing: 0.14em;
+      margin: 0 0 8px 0;
+      color: var(--text-primary);
+    }
+
+    .modal-title {
+      font-family: var(--font-serif);
+      font-size: 23px;
+      font-weight: 400;
+      letter-spacing: 0.03em;
+      margin: 0 0 8px 0;
+      color: var(--text-primary);
+    }
+
+    .modal-desc {
+      font-size: 13px;
+      line-height: 1.56;
+      color: var(--text-muted);
+      margin: 0 0 20px 0;
+    }
+
+    .lantern-seal {
+      width: 56px;
+      height: 56px;
+      margin: 0 auto 14px auto;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(245, 199, 126, 0.24) 0%, rgba(245, 199, 126, 0.02) 72%);
+      border: 1px solid rgba(245, 199, 126, 0.44);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 28px rgba(245, 199, 126, 0.18);
+    }
+
+    .btn-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .btn-primary,
+    .btn-secondary {
+      position: relative;
+      z-index: 10000;
+      width: 100%;
+      pointer-events: auto;
+      touch-action: manipulation;
+      cursor: pointer;
+      outline: none;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
+    .btn-primary {
+      padding: 14px 18px;
+      border-radius: 14px;
+      border: 1px solid rgba(245, 199, 126, 0.65);
+      background: linear-gradient(180deg, #F5C77E 0%, #D39E52 100%);
+      color: #19130D;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      box-shadow: 0 8px 22px rgba(245, 199, 126, 0.25);
+      transition: transform 0.14s ease, filter 0.2s ease;
+    }
+
+    .btn-primary:active {
+      transform: scale(0.97);
+      filter: brightness(0.94);
+    }
+
+    .btn-secondary {
+      padding: 12px 16px;
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      background: rgba(255, 255, 255, 0.07);
+      color: var(--text-primary);
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: 0.03em;
+      transition: transform 0.14s ease, background 0.2s ease;
+    }
+
+    .btn-secondary:active {
+      transform: scale(0.97);
+      background: rgba(255, 255, 255, 0.14);
+    }
+
+    .win-lanterns {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      margin: 6px 0 16px 0;
+    }
+
+    .win-lantern {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: 1px solid rgba(245, 199, 126, 0.38);
+      background: rgba(245, 199, 126, 0.08);
+      transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.4s ease, box-shadow 0.4s ease;
+    }
+
+    .win-lantern.lit {
+      background: radial-gradient(circle, #FFF7E0 0%, #F5C77E 70%);
+      box-shadow: 0 0 18px rgba(245, 199, 126, 0.8);
+      transform: scale(1.12);
+    }
+
+    .win-stats {
+      display: flex;
+      justify-content: center;
+      gap: 18px;
+      margin-bottom: 16px;
+      font-size: 12px;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .win-stats strong {
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+
+    .settings-section {
+      text-align: left;
+      margin-bottom: 16px;
+    }
+
+    .settings-label {
+      font-size: 10px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+
+    .palette-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+    }
+
+    .palette-chip {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.11);
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text-primary);
+      font-size: 11.5px;
+      cursor: pointer;
+      touch-action: manipulation;
+      text-align: left;
+      transition: border-color 0.2s ease, background 0.2s ease, transform 0.14s ease;
+    }
+
+    .palette-chip:active { transform: scale(0.96); }
+    .palette-chip.selected {
+      border-color: var(--accent);
+      background: rgba(245, 199, 126, 0.16);
+    }
+
+    .palette-swatch {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 9px 2px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+      font-size: 13px;
+    }
+
+    .toggle-row:last-child { border-bottom: none; }
+
+    .switch {
+      position: relative;
+      width: 44px;
+      height: 24px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.14);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      cursor: pointer;
+      touch-action: manipulation;
+      padding: 0;
+      transition: background 0.22s ease;
+    }
+
+    .switch::after {
+      content: "";
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #F3EEE4;
+      transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .switch.on {
+      background: rgba(245, 199, 126, 0.88);
+      border-color: var(--accent);
+    }
+
+    .switch.on::after {
+      transform: translateX(20px);
+      background: #1B140C;
+    }
+
+    .color-key-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .color-key-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 7px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      font-size: 10.5px;
+      color: var(--text-primary);
+    }
+
+    .color-key-dot {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1.5px solid rgba(255, 255, 255, 0.9);
+    }
+
+    .color-key-dot svg {
+      width: 10px;
+      height: 10px;
+      display: block;
+    }
+
+    .rules-list {
+      text-align: left;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .rules-list li {
+      font-size: 12px;
+      line-height: 1.45;
+      color: var(--text-muted);
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+    }
+
+    .rule-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      margin-top: 6px;
+      flex-shrink: 0;
+    }
+
+    .rules-list strong { color: var(--text-primary); }
+  </style>
+</head>
+<body>
+  <div id="viewport">
+    <!-- FULL-BLEED THREE.JS WEBGL CANVAS -->
+    <canvas id="webgl-canvas"></canvas>
+
+    <!-- NON-BLOCKING OVERLAY LAYERS -->
+    <div id="floating-labels"></div>
+    <div id="fx-layer"></div>
+    <div id="toast-layer">
+      <div id="toast" role="status" aria-live="polite"></div>
+    </div>
+
+    <!-- FLOATING HUD (Container pointer-events: none; controls pointer-events: auto) -->
+    <div id="hud">
+      <header class="top-hud">
+        <div class="hud-left">
+          <div class="harbor-row">
+            <div class="harbor-title" id="hud-title">I. Crescent Cove</div>
+            <span class="mode-pill" id="hud-mode-pill">Harbor 1</span>
+          </div>
+          <div class="progress-row">
+            <div class="progress-track">
+              <div class="progress-fill" id="hud-progress-fill"></div>
+            </div>
+            <span class="progress-text" id="hud-progress-text">0 / 0</span>
+          </div>
+        </div>
+
+        <div class="hud-right">
+          <button type="button" class="icon-btn" id="btn-recenter" aria-label="Recenter Camera" title="Recenter Camera">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>
+          </button>
+          <button type="button" class="icon-btn" id="btn-audio" aria-label="Toggle Sound" title="Sound">
+            <svg id="icon-audio-on" viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+            <svg id="icon-audio-off" viewBox="0 0 24 24" style="display:none;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+          </button>
+          <button type="button" class="icon-btn" id="btn-settings" aria-label="Settings & Guide" title="Settings">
+            <svg viewBox="0 0 24 24"><line x1="4" y1="7" x2="20" y2="7"/><circle cx="9" cy="7" r="2.2" fill="#0B1424"/><line x1="4" y1="17" x2="20" y2="17"/><circle cx="15" cy="17" r="2.2" fill="#0B1424"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <footer class="bottom-wrap">
+        <div class="bottom-dock">
+          <button type="button" class="dock-btn" id="btn-undo" disabled>
+            <svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>
+            <span>Undo</span>
+          </button>
+          <button type="button" class="dock-btn" id="btn-reserve">
+            <svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4" stroke-dasharray="3 2.5"/><line x1="12" y1="8.5" x2="12" y2="15.5"/><line x1="8.5" y1="12" x2="15.5" y2="12"/></svg>
+            <span>+1 Slip</span>
+          </button>
+          <button type="button" class="dock-btn" id="btn-restart">
+            <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+            <span>Restart</span>
+          </button>
+          <button type="button" class="dock-btn" id="btn-daily">
+            <span class="daily-dot" id="daily-dot"></span>
+            <svg viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            <span id="btn-daily-label">Daily Tide</span>
+          </button>
+        </div>
+      </footer>
+    </div>
+
+    <!-- TITLE SCREEN (z-index: 9999, immediately responsive) -->
+    <div id="title-screen">
+      <div class="modal-card">
+        <div class="lantern-seal" aria-hidden="true">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#F5C77E" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2L17.5 11.5H6.5L12 2Z"/>
+            <path d="M4.5 14.5h15l-2.2 5.5H6.7l-2.2-5.5z"/>
+          </svg>
+        </div>
+        <div class="eyebrow">A Nocturnal 3D Harbor Diorama</div>
+        <h1 class="brand-title">SLIPWAY 3D</h1>
+        <p class="modal-desc">Tap boats with a clear course to glide them into wooden slips. Watch coastal guests hop aboard and sail into twilight. Drag gently to orbit the harbor.</p>
+        <div class="btn-stack">
+          <button type="button" class="btn-primary" id="btn-start-journey">Start Journey</button>
+          <button type="button" class="btn-secondary" id="btn-daily-tide">Play Today's Daily Tide</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: HARBOR FULL (GENTLE ASSIST) -->
+    <div class="modal-backdrop" id="full-modal">
+      <div class="modal-card">
+        <div class="eyebrow">Slips Occupied</div>
+        <h2 class="modal-title">Harbor Full</h2>
+        <p class="modal-desc">Every docked vessel is waiting for a different color. Take a breath and choose how to proceed.</p>
+        <div class="btn-stack">
+          <button type="button" class="btn-primary" id="btn-full-undo">Undo Last Move</button>
+          <button type="button" class="btn-secondary" id="btn-full-reserve" style="display:none;">Extend 6th Reserve Slip (+1)</button>
+          <button type="button" class="btn-secondary" id="btn-full-assist">Call Next Match Forward</button>
+          <button type="button" class="btn-secondary" id="btn-full-restart">Restart Harbor</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: RESTART CONFIRMATION -->
+    <div class="modal-backdrop" id="restart-modal">
+      <div class="modal-card">
+        <div class="eyebrow">Reset Harbor</div>
+        <h2 class="modal-title">Begin Again?</h2>
+        <p class="modal-desc">All vessels and guests will return to their original moorings.</p>
+        <div class="btn-stack">
+          <button type="button" class="btn-primary" id="btn-restart-confirm">Restart Harbor</button>
+          <button type="button" class="btn-secondary" id="btn-restart-cancel">Keep Playing</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: HARBOR COMPLETE -->
+    <div class="modal-backdrop" id="win-modal">
+      <div class="modal-card">
+        <div class="eyebrow" id="win-eyebrow">Harbor Cleared</div>
+        <h2 class="modal-title" id="win-title">I. Crescent Cove</h2>
+        <div class="win-lanterns" id="win-lanterns">
+          <div class="win-lantern"></div>
+          <div class="win-lantern"></div>
+          <div class="win-lantern"></div>
+        </div>
+        <div class="win-stats">
+          <span><strong id="win-guests">0</strong> guests home</span>
+          <span><strong id="win-flow">Serene</strong> flow</span>
+        </div>
+        <p class="modal-desc" id="win-quote">The pier lanterns dim as the harbor settles into stillness.</p>
+        <div class="btn-stack">
+          <button type="button" class="btn-primary" id="btn-next-harbor">Sail to Next Harbor</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: SETTINGS & GUIDE -->
+    <div class="modal-backdrop" id="settings-modal">
+      <div class="modal-card">
+        <div class="eyebrow">Atmosphere & Guide</div>
+        <h2 class="modal-title" style="margin-bottom:14px;">Harbor Settings</h2>
+
+        <div class="settings-section">
+          <div class="settings-label">Nocturnal 3D Theme</div>
+          <div class="palette-grid" id="palette-grid"></div>
+        </div>
+
+        <div class="settings-section">
+          <div class="settings-label">Soundscape & Clarity</div>
+          <div class="toggle-row">
+            <span>Kalimba & Harbor Chimes</span>
+            <button type="button" class="switch on" id="toggle-sfx" role="switch" aria-checked="true"></button>
+          </div>
+          <div class="toggle-row">
+            <span>Ambient Ocean Surf</span>
+            <button type="button" class="switch on" id="toggle-waves" role="switch" aria-checked="true"></button>
+          </div>
+          <div class="toggle-row">
+            <span>Floating Symbols</span>
+            <button type="button" class="switch" id="toggle-symbols" role="switch" aria-checked="false"></button>
+          </div>
+          <div class="color-key-grid" id="color-key-grid"></div>
+        </div>
+
+        <div class="settings-section" style="margin-bottom:16px;">
+          <div class="settings-label">Harbor Guide</div>
+          <ul class="rules-list">
+            <li><span class="rule-dot"></span><span><strong>Launch & Orbit:</strong> Tap any boat with a clear path ahead to steer it into a slip. Drag the water gently to orbit or pinch/scroll to zoom.</span></li>
+            <li><span class="rule-dot"></span><span><strong>Canvas Tarps (Harbor 2+):</strong> Tied sailcloth pops off in the breeze as soon as a boat's forward path opens.</span></li>
+            <li><span class="rule-dot"></span><span><strong>Sea Stacks & Chains (Harbor 3–4+):</strong> Steer around weathered pilings; brass mooring locks count down each time a full vessel departs.</span></li>
+          </ul>
+        </div>
+
+        <div class="btn-stack">
+          <button type="button" class="btn-primary" id="btn-settings-close">Return to Harbor</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      'use strict';
+
+      /* =========================================================================
+         1. SAFE STORAGE & DETERMINISTIC UTILITIES
+         ========================================================================= */
+      function safeGetStorage(key, fallback) {
+        try {
+          const val = window.localStorage.getItem(key);
+          return val !== null ? val : fallback;
+        } catch (_) {
+          return fallback;
+        }
+      }
+
+      function safeSetStorage(key, val) {
+        try {
+          window.localStorage.setItem(key, String(val));
+        } catch (_) {}
+      }
+
+      function toRoman(num) {
+        const pairs = [
+          [1000, 'M'], [900, 'CM'], [500, 'D'], [400, 'CD'],
+          [100, 'C'], [90, 'XC'], [50, 'L'], [40, 'XL'],
+          [10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']
+        ];
+        let n = Math.max(1, num | 0);
+        let out = '';
+        for (let i = 0; i < pairs.length; i++) {
+          while (n >= pairs[i][0]) {
+            out += pairs[i][1];
+            n -= pairs[i][0];
+          }
+        }
+        return out;
+      }
+
+      function getTodayKey() {
+        const d = new Date();
+        return d.getFullYear() + '-' +
+          String(d.getMonth() + 1).padStart(2, '0') + '-' +
+          String(d.getDate()).padStart(2, '0');
+      }
+
+      function hashString(str) {
+        let h = 2166136261 >>> 0;
+        for (let i = 0; i < str.length; i++) {
+          h ^= str.charCodeAt(i);
+          h = Math.imul(h, 16777619);
+        }
+        return h >>> 0;
+      }
+
+      function mulberry32(seed) {
+        let a = seed >>> 0;
+        return function () {
+          a |= 0;
+          a = (a + 0x6D2B79F5) | 0;
+          let t = Math.imul(a ^ (a >>> 15), 1 | a);
+          t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+          return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+      }
+
+      function shuffleWithRng(arr, rng) {
+        for (let i = arr.length - 1; i > 0; i--) {
+          const j = Math.floor(rng() * (i + 1));
+          const tmp = arr[i];
+          arr[i] = arr[j];
+          arr[j] = tmp;
+        }
+        return arr;
+      }
+
+      /* =========================================================================
+         2. THEMES & 6 MAXIMALLY DISTINCT HIGH-CONTRAST LACQUER COLORS
+         ========================================================================= */
+      const THEMES = [
+        {
+          id: 'blue_hour',
+          name: 'Blue Hour',
+          swatch: 'linear-gradient(135deg, #102545 0%, #F5C77E 100%)',
+          skyHex: 0x091326,
+          fogHex: 0x0b172c,
+          waterDeep: 0x071224,
+          waterShallow: 0x163659,
+          specular: 0xd4e8ff,
+          lanternHex: 0xffc876,
+          lanternCss: '#F5C77E',
+          moonHex: 0xb9d6ff,
+          hemiSky: 0x3b5c8a,
+          hemiGround: 0x0b1422,
+          wakeHex: 0xe6f4ff,
+          moteHex: 0xffd584,
+          moteMode: 'firefly'
+        },
+        {
+          id: 'amber_dusk',
+          name: 'Amber Dusk',
+          swatch: 'linear-gradient(135deg, #351b38 0%, #f09e67 100%)',
+          skyHex: 0x1a1024,
+          fogHex: 0x22152e,
+          waterDeep: 0x140c1f,
+          waterShallow: 0x3a203e,
+          specular: 0xffb985,
+          lanternHex: 0xffaa66,
+          lanternCss: '#F5B076',
+          moonHex: 0xffcfa6,
+          hemiSky: 0x73445b,
+          hemiGround: 0x170d1c,
+          wakeHex: 0xffe4cc,
+          moteHex: 0xffa65c,
+          moteMode: 'ember'
+        },
+        {
+          id: 'bioluminescent',
+          name: 'Bioluminescent',
+          swatch: 'linear-gradient(135deg, #071e26 0%, #5ce8e2 100%)',
+          skyHex: 0x051319,
+          fogHex: 0x071a22,
+          waterDeep: 0x041218,
+          waterShallow: 0x0d3642,
+          specular: 0x76f5ef,
+          lanternHex: 0x8ef5ee,
+          lanternCss: '#8EEAE4',
+          moonHex: 0xa4e8f0,
+          hemiSky: 0x1d5866,
+          hemiGround: 0x041117,
+          wakeHex: 0x6ef7f0,
+          moteHex: 0x5ef2ea,
+          moteMode: 'bio'
+        },
+        {
+          id: 'sakura_twilight',
+          name: 'Sakura Twilight',
+          swatch: 'linear-gradient(135deg, #1b1d3d 0%, #f5b3c4 100%)',
+          skyHex: 0x121530,
+          fogHex: 0x1a1c3b,
+          waterDeep: 0x0d1026,
+          waterShallow: 0x272a54,
+          specular: 0xf7c5d3,
+          lanternHex: 0xffbfd0,
+          lanternCss: '#F5B8C8',
+          moonHex: 0xf5d6e6,
+          hemiSky: 0x5c4775,
+          hemiGround: 0x131126,
+          wakeHex: 0xffdfe8,
+          moteHex: 0xffb5c8,
+          moteMode: 'petal'
+        }
+      ];
+
+      // 6 Maximally Separated High-Contrast Lacquer Colors + Dual-Channel Emblems
+      const HULL_COLORS = [
+        { id: 0, name: 'Crimson', hex: 0xFF2236, trim: 0xFFFFFF, emblem: 'circle',   emblemHex: 0xFFFFFF, badgeBg: '#FF2236', badgeFg: '#FFFFFF', darkTrim: false, emissiveInt: 0.44 },
+        { id: 1, name: 'Solar',   hex: 0xFFD400, trim: 0x181B22, emblem: 'triangle', emblemHex: 0x181B22, badgeBg: '#FFD400', badgeFg: '#181B22', darkTrim: true,  emissiveInt: 0.46 },
+        { id: 2, name: 'Jade',    hex: 0x00D44B, trim: 0xFFFFFF, emblem: 'diamond',  emblemHex: 0xFFFFFF, badgeBg: '#00D44B', badgeFg: '#FFFFFF', darkTrim: false, emissiveInt: 0.43 },
+        { id: 3, name: 'Cobalt',  hex: 0x1A6BFF, trim: 0xFFFFFF, emblem: 'square',   emblemHex: 0xFFFFFF, badgeBg: '#1A6BFF', badgeFg: '#FFFFFF', darkTrim: false, emissiveInt: 0.48 },
+        { id: 4, name: 'Magenta', hex: 0xFF2EC4, trim: 0xFFFFFF, emblem: 'star',     emblemHex: 0xFFFFFF, badgeBg: '#FF2EC4', badgeFg: '#FFFFFF', darkTrim: false, emissiveInt: 0.45 },
+        { id: 5, name: 'Pearl',   hex: 0xF8FAFC, trim: 0x161B26, emblem: 'cross',    emblemHex: 0x161B26, badgeBg: '#F8FAFC', badgeFg: '#161B26', darkTrim: true,  emissiveInt: 0.42 }
+      ];
+
+      const HARBOR_NAMES = [
+        'Crescent Cove', 'Lantern Reach', 'Glasswater Pier', 'Stillwater Quay',
+        'Whispering Shoal', 'Moonlit Anchorage', 'Amber Breakwater', 'Silver Channel',
+        'Velvet Sound', 'Tidewater Basin', 'Dusklight Harbor', 'Starlight Marina',
+        'Mistwood Inlet', 'Quiet Meridian', 'Saffron Jetty', 'Nautilus Bay'
+      ];
+
+      const WIN_QUOTES = [
+        'The pier lanterns dim as the harbor settles into stillness.',
+        'Soft ripples dissolve beneath a quiet midnight tide.',
+        'Every vessel has found its course across the open bay.',
+        'Warm lantern light lingers gently along the empty planks.',
+        'Only the slow rhythm of the evening swell remains.'
+      ];
+
+      const DIRS = {
+        N: { dr: -1, dc: 0, yaw: Math.PI },
+        S: { dr:  1, dc: 0, yaw: 0 },
+        E: { dr:  0, dc: 1, yaw: Math.PI / 2 },
+        W: { dr:  0, dc: -1, yaw: -Math.PI / 2 }
+      };
+      const DIR_KEYS = ['N', 'S', 'E', 'W'];
+
+      function getHarborDisplayName(mode, levelNum, dateKey) {
+        if (mode === 'daily') return 'Daily Tide · ' + dateKey.slice(5).replace('-', '/');
+        return toRoman(levelNum) + '. ' + HARBOR_NAMES[(levelNum - 1) % HARBOR_NAMES.length];
+      }
+
+      /* =========================================================================
+         3. GENERATIVE WEB AUDIO SOUNDSCAPE (100% TRY/CATCH PROTECTED)
+         ========================================================================= */
+      class SoundEngine {
+        constructor() {
+          this.ctx = null;
+          this.master = null;
+          this.sfxBus = null;
+          this.delayIn = null;
+          this.waveGain = null;
+          this.wavesStarted = false;
+          this.sfxEnabled = safeGetStorage('slipway3d_sfx', '1') !== '0';
+          this.wavesEnabled = safeGetStorage('slipway3d_waves', '1') !== '0';
+          this.scale = [261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25, 783.99, 880.00];
+        }
+
+        unlock() {
+          try {
+            if (!this.ctx) {
+              const AC = window.AudioContext || window.webkitAudioContext;
+              if (!AC) return;
+              this.ctx = new AC();
+
+              this.master = this.ctx.createGain();
+              this.master.gain.value = 0.92;
+              this.master.connect(this.ctx.destination);
+
+              this.sfxBus = this.ctx.createGain();
+              this.sfxBus.gain.value = this.sfxEnabled ? 1 : 0;
+              this.sfxBus.connect(this.master);
+
+              const delayL = this.ctx.createDelay(1.0);
+              const delayR = this.ctx.createDelay(1.0);
+              delayL.delayTime.value = 0.28;
+              delayR.delayTime.value = 0.37;
+
+              const fbL = this.ctx.createGain();
+              const fbR = this.ctx.createGain();
+              fbL.gain.value = 0.27;
+              fbR.gain.value = 0.25;
+
+              const damp = this.ctx.createBiquadFilter();
+              damp.type = 'lowpass';
+              damp.frequency.value = 1700;
+
+              const wet = this.ctx.createGain();
+              wet.gain.value = 0.28;
+
+              this.delayIn = this.ctx.createGain();
+              this.delayIn.gain.value = 1.0;
+
+              this.delayIn.connect(damp);
+              damp.connect(delayL);
+              damp.connect(delayR);
+              delayL.connect(fbL).connect(delayR);
+              delayR.connect(fbR).connect(delayL);
+              delayL.connect(wet);
+              delayR.connect(wet);
+              wet.connect(this.sfxBus);
+
+              this.initOceanWaves();
+            }
+            if (this.ctx && this.ctx.state === 'suspended') {
+              const p = this.ctx.resume();
+              if (p && typeof p.catch === 'function') p.catch(function () {});
+            }
+            this.syncVolumes();
+          } catch (_) {}
+        }
+
+        initOceanWaves() {
+          try {
+            if (!this.ctx || this.wavesStarted) return;
+            this.wavesStarted = true;
+            const dur = 6;
+            const sr = this.ctx.sampleRate;
+            const len = sr * dur;
+            const buf = this.ctx.createBuffer(1, len, sr);
+            const data = buf.getChannelData(0);
+            let lastOut = 0;
+            for (let i = 0; i < len; i++) {
+              const white = Math.random() * 2 - 1;
+              lastOut = (lastOut + 0.024 * white) / 1.024;
+              data[i] = lastOut * 2.8;
+            }
+            const fade = Math.floor(sr * 0.25);
+            for (let i = 0; i < fade; i++) {
+              const k = i / fade;
+              data[i] = data[i] * k + data[len - fade + i] * (1 - k);
+            }
+
+            const src = this.ctx.createBufferSource();
+            src.buffer = buf;
+            src.loop = true;
+
+            const filter = this.ctx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.value = 270;
+
+            const lfo1 = this.ctx.createOscillator();
+            const lfo1G = this.ctx.createGain();
+            lfo1.frequency.value = 0.11;
+            lfo1G.gain.value = 145;
+            lfo1.connect(lfo1G).connect(filter.frequency);
+
+            const amp = this.ctx.createGain();
+            amp.gain.value = 0.095;
+            const lfo2 = this.ctx.createOscillator();
+            const lfo2G = this.ctx.createGain();
+            lfo2.frequency.value = 0.16;
+            lfo2G.gain.value = 0.036;
+            lfo2.connect(lfo2G).connect(amp.gain);
+
+            this.waveGain = this.ctx.createGain();
+            this.waveGain.gain.value = 0.0001;
+
+            src.connect(filter).connect(amp).connect(this.waveGain).connect(this.master);
+            src.start();
+            lfo1.start();
+            lfo2.start();
+          } catch (_) {}
+        }
+
+        syncVolumes() {
+          try {
+            if (!this.ctx) return;
+            const now = this.ctx.currentTime;
+            if (this.sfxBus) this.sfxBus.gain.setTargetAtTime(this.sfxEnabled ? 1.0 : 0.0, now, 0.04);
+            if (this.waveGain) this.waveGain.gain.setTargetAtTime(this.wavesEnabled ? 0.52 : 0.0, now, 0.35);
+          } catch (_) {}
+        }
+
+        setSfx(on) {
+          this.sfxEnabled = !!on;
+          safeSetStorage('slipway3d_sfx', this.sfxEnabled ? '1' : '0');
+          this.syncVolumes();
+        }
+
+        setWaves(on) {
+          this.wavesEnabled = !!on;
+          safeSetStorage('slipway3d_waves', this.wavesEnabled ? '1' : '0');
+          this.syncVolumes();
+        }
+
+        toggleMasterMute() {
+          const anyOn = this.sfxEnabled || this.wavesEnabled;
+          this.setSfx(!anyOn);
+          this.setWaves(!anyOn);
+          return !anyOn;
+        }
+
+        canSfx() {
+          return this.sfxEnabled && this.ctx && this.ctx.state === 'running';
+        }
+
+        vibrate(p) {
+          try { if (navigator.vibrate) navigator.vibrate(p); } catch (_) {}
+        }
+
+        playLaunch() {
+          this.vibrate(9);
+          if (!this.canSfx()) return;
+          try {
+            const t = this.ctx.currentTime;
+            const dur = 0.34;
+            const buf = this.ctx.createBuffer(1, Math.floor(this.ctx.sampleRate * dur), this.ctx.sampleRate);
+            const ch = buf.getChannelData(0);
+            for (let i = 0; i < ch.length; i++) ch[i] = (Math.random() * 2 - 1) * Math.sin((i / ch.length) * Math.PI);
+            const src = this.ctx.createBufferSource();
+            src.buffer = buf;
+
+            const bp = this.ctx.createBiquadFilter();
+            bp.type = 'bandpass';
+            bp.frequency.setValueAtTime(320, t);
+            bp.frequency.exponentialRampToValueAtTime(840, t + 0.14);
+            bp.frequency.exponentialRampToValueAtTime(250, t + dur);
+            bp.Q.value = 1.4;
+
+            const g = this.ctx.createGain();
+            g.gain.setValueAtTime(0.001, t);
+            g.gain.linearRampToValueAtTime(0.095, t + 0.05);
+            g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+            src.connect(bp).connect(g).connect(this.sfxBus);
+            src.start(t);
+
+            const osc = this.ctx.createOscillator();
+            const og = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(196, t);
+            osc.frequency.exponentialRampToValueAtTime(261.63, t + 0.09);
+            og.gain.setValueAtTime(0.001, t);
+            og.gain.linearRampToValueAtTime(0.085, t + 0.012);
+            og.gain.exponentialRampToValueAtTime(0.001, t + 0.24);
+            osc.connect(og).connect(this.sfxBus);
+            og.connect(this.delayIn);
+            osc.start(t);
+            osc.stop(t + 0.26);
+          } catch (_) {}
+        }
+
+        playBump() {
+          this.vibrate([10, 22, 8]);
+          if (!this.canSfx()) return;
+          try {
+            const t = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const g = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(145, t);
+            osc.frequency.exponentialRampToValueAtTime(78, t + 0.09);
+            g.gain.setValueAtTime(0.001, t);
+            g.gain.linearRampToValueAtTime(0.15, t + 0.007);
+            g.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+            osc.connect(g).connect(this.sfxBus);
+            osc.start(t);
+            osc.stop(t + 0.13);
+          } catch (_) {}
+        }
+
+        playChainClink() {
+          this.vibrate(12);
+          if (!this.canSfx()) return;
+          try {
+            const t = this.ctx.currentTime;
+            [880, 1318.5].forEach(function (freq, i) {
+              const osc = this.ctx.createOscillator();
+              const g = this.ctx.createGain();
+              osc.type = 'sine';
+              osc.frequency.setValueAtTime(freq, t + i * 0.03);
+              g.gain.setValueAtTime(0.001, t + i * 0.03);
+              g.gain.linearRampToValueAtTime(0.055, t + i * 0.03 + 0.006);
+              g.gain.exponentialRampToValueAtTime(0.001, t + i * 0.03 + 0.14);
+              osc.connect(g).connect(this.sfxBus);
+              osc.start(t + i * 0.03);
+              osc.stop(t + i * 0.03 + 0.16);
+            }.bind(this));
+          } catch (_) {}
+        }
+
+        playChainRelease() {
+          if (!this.canSfx()) return;
+          try {
+            const t = this.ctx.currentTime;
+            [523.25, 783.99, 1046.5].forEach(function (freq, i) {
+              const st = t + i * 0.055;
+              const osc = this.ctx.createOscillator();
+              const g = this.ctx.createGain();
+              osc.type = 'sine';
+              osc.frequency.setValueAtTime(freq, st);
+              g.gain.setValueAtTime(0.001, st);
+              g.gain.linearRampToValueAtTime(0.06, st + 0.015);
+              g.gain.exponentialRampToValueAtTime(0.001, st + 0.44);
+              osc.connect(g).connect(this.sfxBus);
+              g.connect(this.delayIn);
+              osc.start(st);
+              osc.stop(st + 0.46);
+            }.bind(this));
+          } catch (_) {}
+        }
+
+        playBoard(seatIdx) {
+          this.vibrate(4);
+          if (!this.canSfx()) return;
+          try {
+            const t = this.ctx.currentTime;
+            const freq = this.scale[Math.min(seatIdx, this.scale.length - 1)];
+            const osc = this.ctx.createOscillator();
+            const over = this.ctx.createOscillator();
+            const g = this.ctx.createGain();
+            const og = this.ctx.createGain();
+
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, t);
+            over.type = 'triangle';
+            over.frequency.setValueAtTime(freq * 2, t);
+
+            g.gain.setValueAtTime(0.001, t);
+            g.gain.linearRampToValueAtTime(0.11, t + 0.009);
+            g.gain.exponentialRampToValueAtTime(0.001, t + 0.36);
+
+            og.gain.setValueAtTime(0.001, t);
+            og.gain.linearRampToValueAtTime(0.022, t + 0.006);
+            og.gain.exponentialRampToValueAtTime(0.001, t + 0.11);
+
+            osc.connect(g).connect(this.sfxBus);
+            g.connect(this.delayIn);
+            over.connect(og).connect(this.sfxBus);
+
+            osc.start(t);
+            over.start(t);
+            osc.stop(t + 0.38);
+            over.stop(t + 0.13);
+          } catch (_) {}
+        }
+
+        playDepart() {
+          this.vibrate(14);
+          if (!this.canSfx()) return;
+          try {
+            const t = this.ctx.currentTime;
+            [261.63, 329.63, 392.00, 493.88, 587.33].forEach(function (freq, i) {
+              const st = t + i * 0.032;
+              const osc = this.ctx.createOscillator();
+              const g = this.ctx.createGain();
+              osc.type = 'sine';
+              osc.frequency.setValueAtTime(freq, st);
+              g.gain.setValueAtTime(0.001, st);
+              g.gain.linearRampToValueAtTime(0.052, st + 0.04);
+              g.gain.exponentialRampToValueAtTime(0.0008, st + 1.25);
+              osc.connect(g).connect(this.sfxBus);
+              g.connect(this.delayIn);
+              osc.start(st);
+              osc.stop(st + 1.3);
+            }.bind(this));
+          } catch (_) {}
+        }
+
+        playUnwrap() {
+          if (!this.canSfx()) return;
+          try {
+            const t = this.ctx.currentTime;
+            const dur = 0.2;
+            const buf = this.ctx.createBuffer(1, Math.floor(this.ctx.sampleRate * dur), this.ctx.sampleRate);
+            const ch = buf.getChannelData(0);
+            for (let i = 0; i < ch.length; i++) ch[i] = (Math.random() * 2 - 1) * (1 - i / ch.length);
+            const src = this.ctx.createBufferSource();
+            src.buffer = buf;
+            const hp = this.ctx.createBiquadFilter();
+            hp.type = 'highpass';
+            hp.frequency.value = 1700;
+            const g = this.ctx.createGain();
+            g.gain.setValueAtTime(0.05, t);
+            g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+            src.connect(hp).connect(g).connect(this.sfxBus);
+            src.start(t);
+
+            const osc = this.ctx.createOscillator();
+            const og = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(587.33, t);
+            osc.frequency.exponentialRampToValueAtTime(783.99, t + 0.16);
+            og.gain.setValueAtTime(0.001, t);
+            og.gain.linearRampToValueAtTime(0.05, t + 0.02);
+            og.gain.exponentialRampToValueAtTime(0.001, t + 0.32);
+            osc.connect(og).connect(this.sfxBus);
+            og.connect(this.delayIn);
+            osc.start(t);
+            osc.stop(t + 0.34);
+          } catch (_) {}
+        }
+
+        playUndo() {
+          if (!this.canSfx()) return;
+          try {
+            const t = this.ctx.currentTime;
+            [329.63, 261.63].forEach(function (freq, i) {
+              const st = t + i * 0.05;
+              const osc = this.ctx.createOscillator();
+              const g = this.ctx.createGain();
+              osc.type = 'sine';
+              osc.frequency.setValueAtTime(freq, st);
+              g.gain.setValueAtTime(0.001, st);
+              g.gain.linearRampToValueAtTime(0.065, st + 0.01);
+              g.gain.exponentialRampToValueAtTime(0.001, st + 0.18);
+              osc.connect(g).connect(this.sfxBus);
+              osc.start(st);
+              osc.stop(st + 0.2);
+            }.bind(this));
+          } catch (_) {}
+        }
+
+        playWin() {
+          this.vibrate([12, 36, 16]);
+          if (!this.canSfx()) return;
+          try {
+            const t = this.ctx.currentTime;
+            [261.63, 329.63, 392.00, 440.00, 523.25, 659.25, 783.99, 1046.5].forEach(function (freq, i) {
+              const st = t + i * 0.085;
+              const osc = this.ctx.createOscillator();
+              const g = this.ctx.createGain();
+              osc.type = 'sine';
+              osc.frequency.setValueAtTime(freq, st);
+              g.gain.setValueAtTime(0.001, st);
+              g.gain.linearRampToValueAtTime(0.068, st + 0.025);
+              g.gain.exponentialRampToValueAtTime(0.0007, st + 1.55);
+              osc.connect(g).connect(this.sfxBus);
+              g.connect(this.delayIn);
+              osc.start(st);
+              osc.stop(st + 1.6);
+            }.bind(this));
+            const bell = this.ctx.createOscillator();
+            const bg = this.ctx.createGain();
+            bell.type = 'sine';
+            bell.frequency.setValueAtTime(1046.5, t + 0.2);
+            bg.gain.setValueAtTime(0.001, t + 0.2);
+            bg.gain.linearRampToValueAtTime(0.04, t + 0.23);
+            bg.gain.exponentialRampToValueAtTime(0.0005, t + 2.2);
+            bell.connect(bg).connect(this.delayIn);
+            bell.start(t + 0.2);
+            bell.stop(t + 2.25);
+          } catch (_) {}
+        }
+      }
+
+      /* =========================================================================
+         4. GUARANTEED-SOLVABLE CONSTRUCTIVE PEELING LEVEL GENERATOR
+         ========================================================================= */
+      function getBoatCells(boat) {
+        const d = DIRS[boat.dir];
+        const cells = [];
+        for (let i = 0; i < boat.len; i++) {
+          cells.push({ r: boat.r + d.dr * i, c: boat.c + d.dc * i });
+        }
+        return cells;
+      }
+
+      function findFirstBlocker(boat, allBoats, pilings, gridSize) {
+        const occBoat = new Map();
+        for (let bi = 0; bi < allBoats.length; bi++) {
+          const other = allBoats[bi];
+          if (other.id === boat.id) continue;
+          const cells = getBoatCells(other);
+          for (let ci = 0; ci < cells.length; ci++) {
+            occBoat.set(cells[ci].r * gridSize + cells[ci].c, other);
+          }
+        }
+        const pilingMap = new Map();
+        for (let pi = 0; pi < pilings.length; pi++) {
+          pilingMap.set(pilings[pi].r * gridSize + pilings[pi].c, pilings[pi]);
+        }
+
+        const d = DIRS[boat.dir];
+        let r = boat.r + d.dr * boat.len;
+        let c = boat.c + d.dc * boat.len;
+        let guard = 0;
+        while (r >= 0 && r < gridSize && c >= 0 && c < gridSize && guard < 32) {
+          guard++;
+          const key = r * gridSize + c;
+          if (pilingMap.has(key)) return { type: 'piling', obj: pilingMap.get(key) };
+          if (occBoat.has(key)) return { type: 'boat', obj: occBoat.get(key) };
+          r += d.dr;
+          c += d.dc;
+        }
+        return null;
+      }
+
+      function computePeelingOrder(boats, pilings, gridSize, rng) {
+        const remaining = boats.slice();
+        const order = [];
+        let steps = 0;
+        const maxSteps = boats.length + 4;
+        while (remaining.length > 0 && steps < maxSteps) {
+          steps++;
+          const clearIdx = [];
+          for (let i = 0; i < remaining.length; i++) {
+            if (!findFirstBlocker(remaining[i], remaining, pilings, gridSize)) {
+              clearIdx.push(i);
+            }
+          }
+          if (clearIdx.length === 0) break;
+          const pick = clearIdx[Math.floor(rng() * clearIdx.length)];
+          order.push(remaining[pick]);
+          remaining.splice(pick, 1);
+        }
+        return remaining.length === 0 ? order : null;
+      }
+
+      function buildFallbackLevel() {
+        const boats = [
+          { id: 1, r: 1, c: 0, len: 2, dir: 'N', capacity: 2, color: 0, mystery: false, lockCount: 0, state: 'idle', bumpT: 0, highlightT: 0 },
+          { id: 2, r: 1, c: 2, len: 2, dir: 'N', capacity: 4, color: 1, mystery: false, lockCount: 0, state: 'idle', bumpT: 0, highlightT: 0 },
+          { id: 3, r: 1, c: 4, len: 2, dir: 'N', capacity: 2, color: 2, mystery: false, lockCount: 0, state: 'idle', bumpT: 0, highlightT: 0 },
+          { id: 4, r: 3, c: 0, len: 2, dir: 'E', capacity: 4, color: 3, mystery: false, lockCount: 0, state: 'idle', bumpT: 0, highlightT: 0 },
+          { id: 5, r: 4, c: 2, len: 2, dir: 'E', capacity: 2, color: 0, mystery: false, lockCount: 0, state: 'idle', bumpT: 0, highlightT: 0 },
+          { id: 6, r: 3, c: 4, len: 2, dir: 'S', capacity: 4, color: 1, mystery: false, lockCount: 0, state: 'idle', bumpT: 0, highlightT: 0 }
+        ];
+        const queue = [0, 0, 1, 1, 1, 1, 2, 2, 3, 3, 3, 3, 0, 0, 1, 1, 1, 1];
+        return { gridSize: 5, boats: boats, pilings: [], queue: queue, totalGuests: queue.length };
+      }
+
+      function generateHarborLevel(levelNum, mode, dateKey) {
+        try {
+          const seedStr = mode === 'daily'
+            ? 'slipway3d_daily_' + dateKey
+            : 'slipway3d_journey_' + levelNum;
+          const rng = mulberry32(hashString(seedStr));
+
+          const effLvl = mode === 'daily' ? 6 : Math.max(1, levelNum);
+          const gridSize = effLvl <= 2 ? 5 : (effLvl <= 5 ? 6 : 7);
+          const colorCount = effLvl === 1 ? 4 : (effLvl <= 4 ? 5 : 6);
+          const targetBoats = effLvl === 1 ? 6
+            : effLvl === 2 ? 9
+            : effLvl === 3 ? 11
+            : effLvl === 4 ? 13
+            : effLvl === 5 ? 14
+            : Math.min(20, 15 + Math.floor((effLvl - 5) / 2));
+
+          const pilingTarget = effLvl < 3 ? 0 : Math.min(4, effLvl - 2);
+          const mysteryTarget = effLvl < 2 ? 0 : Math.min(5, effLvl - 1);
+          const mooringTarget = effLvl < 4 ? 0 : Math.min(3, effLvl - 3);
+
+          const occ = Array.from({ length: gridSize }, function () {
+            return Array(gridSize).fill(0);
+          });
+          const pilings = [];
+
+          let pAttempts = 0;
+          while (pilings.length < pilingTarget && pAttempts < 60) {
+            pAttempts++;
+            const r = 1 + Math.floor(rng() * (gridSize - 2));
+            const c = 1 + Math.floor(rng() * (gridSize - 2));
+            if (occ[r][c] !== 0) continue;
+            if (pilings.some(function (p) { return Math.abs(p.r - r) + Math.abs(p.c - c) <= 1; })) continue;
+            occ[r][c] = -1;
+            pilings.push({ id: pilings.length + 1, r: r, c: c, seed: rng(), highlightT: 0 });
+          }
+
+          const boats = [];
+          let nextId = 1;
+          let attempts = 0;
+          while (boats.length < targetBoats && attempts < 450) {
+            attempts++;
+            let len = 2;
+            let capacity = 4;
+            const roll = rng();
+            if (effLvl === 1) {
+              len = 2; capacity = roll < 0.5 ? 2 : 4;
+            } else if (effLvl < 4) {
+              len = 2; capacity = roll < 0.35 ? 2 : 4;
+            } else {
+              if (roll < 0.25) { len = 2; capacity = 2; }
+              else if (roll < 0.72) { len = 2; capacity = 4; }
+              else { len = 3; capacity = 6; }
+            }
+
+            const dir = DIR_KEYS[Math.floor(rng() * 4)];
+            const d = DIRS[dir];
+            const r = Math.floor(rng() * gridSize);
+            const c = Math.floor(rng() * gridSize);
+
+            let valid = true;
+            const cells = [];
+            for (let i = 0; i < len; i++) {
+              const nr = r + d.dr * i;
+              const nc = c + d.dc * i;
+              if (nr < 0 || nr >= gridSize || nc < 0 || nc >= gridSize || occ[nr][nc] !== 0) {
+                valid = false;
+                break;
+              }
+              cells.push({ r: nr, c: nc });
+            }
+            if (!valid) continue;
+
+            const candidate = {
+              id: nextId, r: r, c: c, len: len, dir: dir, capacity: capacity,
+              color: 0, mystery: false, lockCount: 0,
+              state: 'idle', bumpT: 0, highlightT: 0
+            };
+            boats.push(candidate);
+            if (computePeelingOrder(boats, pilings, gridSize, rng) !== null) {
+              for (let ci = 0; ci < cells.length; ci++) {
+                occ[cells[ci].r][cells[ci].c] = candidate.id;
+              }
+              nextId++;
+            } else {
+              boats.pop();
+            }
+          }
+
+          if (boats.length < 4) return buildFallbackLevel();
+
+          const peelOrder = computePeelingOrder(boats, pilings, gridSize, rng) || boats.slice();
+
+          const colorPool = [];
+          for (let i = 0; i < peelOrder.length; i++) colorPool.push(i % colorCount);
+          shuffleWithRng(colorPool, rng);
+          for (let i = 0; i < peelOrder.length; i++) peelOrder[i].color = colorPool[i];
+
+          if (mysteryTarget > 0) {
+            const blockedCandidates = boats.filter(function (b) {
+              return findFirstBlocker(b, boats, pilings, gridSize) !== null;
+            });
+            shuffleWithRng(blockedCandidates, rng);
+            for (let k = 0; k < Math.min(mysteryTarget, blockedCandidates.length); k++) {
+              blockedCandidates[k].mystery = true;
+            }
+          }
+
+          if (mooringTarget > 0 && peelOrder.length >= 6) {
+            const lockCandidates = [];
+            for (let i = 4; i < peelOrder.length; i++) lockCandidates.push({ boat: peelOrder[i], idx: i });
+            shuffleWithRng(lockCandidates, rng);
+            for (let k = 0; k < Math.min(mooringTarget, lockCandidates.length); k++) {
+              const item = lockCandidates[k];
+              item.boat.lockCount = (item.idx >= 7 && rng() < 0.45) ? 2 : 1;
+            }
+          }
+
+          const queue = [];
+          let cursor = 0;
+          let qGuard = 0;
+          while (cursor < peelOrder.length && qGuard < 200) {
+            qGuard++;
+            const rem = peelOrder.length - cursor;
+            const winSize = rem <= 3 ? rem : (effLvl === 1 ? 2 : (rng() < 0.5 ? 2 : 3));
+            const group = peelOrder.slice(cursor, cursor + winSize);
+            cursor += winSize;
+
+            const clusters = [];
+            for (let gi = 0; gi < group.length; gi++) {
+              const b = group[gi];
+              let left = b.capacity;
+              while (left > 0) {
+                const chunk = left <= 2 ? left : (rng() < 0.55 ? 2 : Math.min(3, left));
+                clusters.push({ color: b.color, count: chunk });
+                left -= chunk;
+              }
+            }
+            shuffleWithRng(clusters, rng);
+            for (let ci = 0; ci < clusters.length; ci++) {
+              for (let s = 0; s < clusters[ci].count; s++) queue.push(clusters[ci].color);
+            }
+          }
+
+          return { gridSize: gridSize, boats: boats, pilings: pilings, queue: queue, totalGuests: queue.length };
+        } catch (_) {
+          return buildFallbackLevel();
+        }
+      }
+
+      /* =========================================================================
+         5. SHARED GAME STATE & WORLD LAYOUT
+         ========================================================================= */
+      const WORLD = {
+        cellSize: 1.12,
+        promZ: -5.45,
+        promY: 0.58,
+        promDepth: 1.65,
+        slipZ: -3.55,
+        channelZ: -1.85,
+        gridCenterZ: 2.05,
+        slipXs: [-3.5, -2.1, -0.7, 0.7, 2.1, 3.5]
+      };
+
+      const sound = new SoundEngine();
+
+      const state = {
+        sceneReady: false,
+        started: false,
+        mode: 'journey',
+        levelNum: parseInt(safeGetStorage('slipway3d_level', '1'), 10) || 1,
+        dateKey: getTodayKey(),
+        themeMode: safeGetStorage('slipway3d_theme', 'auto'),
+        theme: THEMES[0],
+        highContrastSymbols: safeGetStorage('slipway3d_symbols', '0') === '1',
+
+        gridSize: 5,
+        boats: [],
+        pilings: [],
+        queue: [],
+        totalGuests: 0,
+        guestsBoarded: 0,
+        slips: [],
+        reserveUnlocked: false,
+        reserveAnim: 0,
+        movesCount: 0,
+        assistsUsed: 0,
+
+        sailingBoats: [],
+        hoppingGuests: [],
+        flyingTarps: [],
+        ripples3D: [],
+        wakes3D: [],
+        sparkles3D: [],
+
+        hoveredBoatId: -1,
+        boardCooldown: 0,
+        fullCheckDelay: 0,
+        initialSnapshot: null,
+        undoStack: [],
+        toastTimer: null
+      };
+
+      let dom = {};
+
+      // 3D engine references (strictly initialized inside initEngine)
+      let renderer = null;
+      let scene = null;
+      let camera = null;
+      let camCtrl = null;
+      let hemiLight = null;
+      let moonLight = null;
+      let waterUniforms = null;
+      let lanternGlassMat = null;
+      let beamMat = null;
+      let reserveGhostMat = null;
+      let moteMat = null;
+      let pierLights = [];
+      let slipIndicators = [];
+      let reservePierMesh = null;
+      let reserveGhost = null;
+      let lhBeamPivot = null;
+      let moteData = [];
+      let sightlineMesh = null;
+      let sightlineMat = null;
+      let gridFrameGroup = null;
+      let boatsGroup = null;
+      let pilingsGroup = null;
+      let queueGroup = null;
+      let effectsGroup = null;
+      let queueMeshes = [];
+      let rippleGeo = null;
+      let wakeGeo = null;
+      let sparkGeo = null;
+      let teakMat = null;
+      let tarpMat = null;
+      let ropeMat = null;
+      let brassMat = null;
+      let raycaster = null;
+      let pointerNdc = null;
+      let projVec = null;
+      const emblemTexCache = {};
+
+      /* =========================================================================
+         6. UI HELPERS & EMBLEM SVGS (ZERO DEPENDENCY ON THREE.JS)
+         ========================================================================= */
+      function getEmblemSvg(emblem, fg) {
+        if (emblem === 'circle') {
+          return '<svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.2" fill="' + fg + '"/></svg>';
+        }
+        if (emblem === 'triangle') {
+          return '<svg viewBox="0 0 16 16"><polygon points="8,2.2 14,13.2 2,13.2" fill="' + fg + '"/></svg>';
+        }
+        if (emblem === 'diamond') {
+          return '<svg viewBox="0 0 16 16"><polygon points="8,2 14,8 8,14 2,8" fill="' + fg + '"/></svg>';
+        }
+        if (emblem === 'square') {
+          return '<svg viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="10" rx="1.4" fill="' + fg + '"/></svg>';
+        }
+        if (emblem === 'star') {
+          return '<svg viewBox="0 0 16 16"><polygon points="8,1.5 9.9,5.7 14.5,6.2 11,9.3 12,13.8 8,11.4 4,13.8 5,9.3 1.5,6.2 6.1,5.7" fill="' + fg + '"/></svg>';
+        }
+        return '<svg viewBox="0 0 16 16"><path d="M6.2 2.4h3.6v3.8h3.8v3.6H9.8v3.8H6.2V9.8H2.4V6.2h3.8z" fill="' + fg + '"/></svg>';
+      }
+
+      function showToast(msg) {
+        if (!dom.toast) return;
+        dom.toast.textContent = msg;
+        dom.toast.classList.add('visible');
+        if (state.toastTimer) clearTimeout(state.toastTimer);
+        state.toastTimer = setTimeout(function () {
+          dom.toast.classList.remove('visible');
+        }, 2300);
+      }
+
+      function hideAllModals() {
+        const list = [dom.fullModal, dom.restartModal, dom.winModal, dom.settingsModal];
+        for (let i = 0; i < list.length; i++) {
+          if (list[i]) list[i].classList.remove('open');
+        }
+      }
+
+      function openModal(el) {
+        hideAllModals();
+        if (el) el.classList.add('open');
+      }
+
+      function syncAudioUI() {
+        const anyOn = sound.sfxEnabled || sound.wavesEnabled;
+        if (dom.iconAudioOn) dom.iconAudioOn.style.display = anyOn ? 'block' : 'none';
+        if (dom.iconAudioOff) dom.iconAudioOff.style.display = anyOn ? 'none' : 'block';
+        if (dom.toggleSfx) {
+          dom.toggleSfx.classList.toggle('on', sound.sfxEnabled);
+          dom.toggleSfx.setAttribute('aria-checked', String(sound.sfxEnabled));
+        }
+        if (dom.toggleWaves) {
+          dom.toggleWaves.classList.toggle('on', sound.wavesEnabled);
+          dom.toggleWaves.setAttribute('aria-checked', String(sound.wavesEnabled));
+        }
+        if (dom.toggleSymbols) {
+          dom.toggleSymbols.classList.toggle('on', state.highContrastSymbols);
+          dom.toggleSymbols.setAttribute('aria-checked', String(state.highContrastSymbols));
+        }
+      }
+
+      function updateHUD() {
+        if (!dom.hudTitle) return;
+        dom.hudTitle.textContent = getHarborDisplayName(state.mode, state.levelNum, state.dateKey);
+        dom.hudModePill.textContent = state.mode === 'daily' ? 'Daily' : ('Harbor ' + state.levelNum);
+        const pct = state.totalGuests > 0 ? Math.min(100, (state.guestsBoarded / state.totalGuests) * 100) : 0;
+        dom.hudProgressFill.style.width = pct + '%';
+        dom.hudProgressText.textContent = state.guestsBoarded + ' / ' + state.totalGuests;
+
+        dom.btnUndo.disabled = state.undoStack.length === 0;
+        dom.btnReserve.disabled = state.reserveUnlocked;
+        dom.btnReserve.style.opacity = state.reserveUnlocked ? '0.35' : '1';
+
+        const dailyDone = safeGetStorage('slipway3d_daily_' + state.dateKey, '0') === '1';
+        dom.dailyDot.classList.toggle('done', dailyDone);
+        dom.btnDaily.classList.toggle('active-mode', state.mode === 'daily');
+        dom.btnDailyLabel.textContent = state.mode === 'daily' ? 'Journey' : 'Daily Tide';
+      }
+
+      function renderPaletteChips() {
+        if (!dom.paletteGrid) return;
+        let html = '<button type="button" class="palette-chip ' +
+          (state.themeMode === 'auto' ? 'selected' : '') +
+          '" data-theme="auto">' +
+          '<span class="palette-swatch" style="background: conic-gradient(#102545, #351b38, #071e26, #f5b3c4, #102545);"></span>' +
+          '<span>Auto Cycle</span></button>';
+        for (let i = 0; i < THEMES.length; i++) {
+          const t = THEMES[i];
+          html += '<button type="button" class="palette-chip ' +
+            (state.themeMode === t.id ? 'selected' : '') +
+            '" data-theme="' + t.id + '">' +
+            '<span class="palette-swatch" style="background:' + t.swatch + ';"></span>' +
+            '<span>' + t.name + '</span></button>';
+        }
+        dom.paletteGrid.innerHTML = html;
+        dom.paletteGrid.querySelectorAll('.palette-chip').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            sound.unlock();
+            state.themeMode = btn.dataset.theme;
+            safeSetStorage('slipway3d_theme', state.themeMode);
+            resolveTheme();
+            renderPaletteChips();
+          });
+        });
+      }
+
+      function renderColorKey() {
+        const el = document.getElementById('color-key-grid');
+        if (!el) return;
+        let html = '';
+        for (let i = 0; i < HULL_COLORS.length; i++) {
+          const c = HULL_COLORS[i];
+          const border = c.darkTrim ? '#161B26' : 'rgba(255,255,255,0.9)';
+          html += '<div class="color-key-item">' +
+            '<span class="color-key-dot" style="background:' + c.badgeBg + ';border-color:' + border + ';">' +
+            getEmblemSvg(c.emblem, c.badgeFg) +
+            '</span><span>' + c.name + '</span></div>';
+        }
+        el.innerHTML = html;
+      }
+
+      /* =========================================================================
+         7. THREE.JS r128 ENGINE INITIALIZATION (ONLY CALLED AFTER THREE VERIFIED)
+         ========================================================================= */
+      function initEngine() {
+        if (state.sceneReady || !window.THREE) return;
+        const THREE = window.THREE;
+
+        renderer = new THREE.WebGLRenderer({
+          canvas: dom.canvas,
+          antialias: true,
+          powerPreference: 'high-performance'
+        });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.outputEncoding = THREE.sRGBEncoding;
+        renderer.toneMapping = THREE.LinearToneMapping;
+        renderer.toneMappingExposure = 1.04;
+
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(THEMES[0].skyHex);
+        scene.fog = new THREE.FogExp2(THEMES[0].fogHex, 0.0175);
+
+        camera = new THREE.PerspectiveCamera(34, window.innerWidth / Math.max(1, window.innerHeight), 0.5, 140);
+        camCtrl = {
+          azimuth: 0,
+          targetAzimuth: 0,
+          polar: 0.86,
+          targetPolar: 0.86,
+          radius: 22.5,
+          targetRadius: 22.5,
+          baseRadius: 22.5,
+          target: new THREE.Vector3(0, 0, -0.35)
+        };
+
+        raycaster = new THREE.Raycaster();
+        pointerNdc = new THREE.Vector2();
+        projVec = new THREE.Vector3();
+
+        // Theme-Proof Lighting Rig
+        hemiLight = new THREE.HemisphereLight(THEMES[0].hemiSky, THEMES[0].hemiGround, 0.78);
+        scene.add(hemiLight);
+
+        moonLight = new THREE.DirectionalLight(THEMES[0].moonHex, 1.15);
+        moonLight.position.set(11, 18, 8);
+        moonLight.castShadow = true;
+        moonLight.shadow.mapSize.width = 1024;
+        moonLight.shadow.mapSize.height = 1024;
+        moonLight.shadow.camera.near = 2;
+        moonLight.shadow.camera.far = 48;
+        const dShadow = 11.5;
+        moonLight.shadow.camera.left = -dShadow;
+        moonLight.shadow.camera.right = dShadow;
+        moonLight.shadow.camera.top = dShadow;
+        moonLight.shadow.camera.bottom = -dShadow;
+        moonLight.shadow.bias = -0.0005;
+        scene.add(moonLight);
+
+        const rimLight = new THREE.DirectionalLight(0x5588cc, 0.32);
+        rimLight.position.set(-12, 8, -14);
+        scene.add(rimLight);
+
+        // Neutral-white overhead key fill so all 6 lacquer hues stay crisp across all 4 themes
+        const pieceKeyLight = new THREE.DirectionalLight(0xffffff, 0.65);
+        pieceKeyLight.position.set(-1.5, 17, 6);
+        scene.add(pieceKeyLight);
+
+        // Custom GLSL Animated Ocean Shader
+        waterUniforms = {
+          uTime: { value: 0 },
+          uDeepColor: { value: new THREE.Color(THEMES[0].waterDeep) },
+          uShallowColor: { value: new THREE.Color(THEMES[0].waterShallow) },
+          uSpecColor: { value: new THREE.Color(THEMES[0].specular) },
+          uLanternColor: { value: new THREE.Color(THEMES[0].lanternHex) },
+          uSunDir: { value: new THREE.Vector3(0.45, 0.75, 0.35).normalize() }
+        };
+
+        const waterMat = new THREE.ShaderMaterial({
+          uniforms: waterUniforms,
+          vertexShader: [
+            'uniform float uTime;',
+            'varying vec3 vWorldPos;',
+            'varying float vWave;',
+            'void main() {',
+            '  vec4 wp = modelMatrix * vec4(position, 1.0);',
+            '  float w1 = sin(wp.x * 0.55 + uTime * 1.15) * 0.055;',
+            '  float w2 = cos(wp.z * 0.65 - uTime * 0.95) * 0.045;',
+            '  float w3 = sin((wp.x + wp.z) * 0.42 + uTime * 0.7) * 0.035;',
+            '  float elev = w1 + w2 + w3;',
+            '  wp.y += elev;',
+            '  vWave = elev;',
+            '  vWorldPos = wp.xyz;',
+            '  gl_Position = projectionMatrix * viewMatrix * wp;',
+            '}'
+          ].join('\n'),
+          fragmentShader: [
+            'uniform float uTime;',
+            'uniform vec3 uDeepColor;',
+            'uniform vec3 uShallowColor;',
+            'uniform vec3 uSpecColor;',
+            'uniform vec3 uLanternColor;',
+            'uniform vec3 uSunDir;',
+            'varying vec3 vWorldPos;',
+            'varying float vWave;',
+            'void main() {',
+            '  float dx = cos(vWorldPos.x * 0.55 + uTime * 1.15) * 0.055 * 0.55',
+            '           + cos((vWorldPos.x + vWorldPos.z) * 0.42 + uTime * 0.7) * 0.035 * 0.42;',
+            '  float dz = -sin(vWorldPos.z * 0.65 - uTime * 0.95) * 0.045 * 0.65',
+            '           + cos((vWorldPos.x + vWorldPos.z) * 0.42 + uTime * 0.7) * 0.035 * 0.42;',
+            '  float micro = sin(vWorldPos.x * 3.1 + uTime * 2.1) * cos(vWorldPos.z * 2.7 - uTime * 1.8) * 0.04;',
+            '  vec3 N = normalize(vec3(-(dx + micro), 1.0, -(dz + micro)));',
+            '  vec3 V = normalize(cameraPosition - vWorldPos);',
+            '  float distHarbor = length(vWorldPos.xz - vec2(0.0, 0.2));',
+            '  float bayFactor = smoothstep(14.5, 2.0, distHarbor);',
+            '  vec3 col = mix(uDeepColor, uShallowColor, bayFactor * 0.82);',
+            '  float fresnel = pow(1.0 - max(dot(N, V), 0.0), 3.2);',
+            '  col = mix(col, uSpecColor * 0.55, fresnel * 0.48);',
+            '  vec3 H = normalize(uSunDir + V);',
+            '  float spec = pow(max(dot(N, H), 0.0), 72.0);',
+            '  col += uSpecColor * spec * 0.72;',
+            '  for (int i = -1; i <= 1; i++) {',
+            '    vec2 lPos = vec2(float(i) * 3.6, -5.0);',
+            '    float dL = length(vWorldPos.xz - lPos);',
+            '    float rippleBreak = 0.75 + 0.25 * sin(vWorldPos.z * 5.0 - uTime * 2.8 + vWorldPos.x * 2.0);',
+            '    float glow = exp(-dL * 0.52) * rippleBreak;',
+            '    col += uLanternColor * glow * 0.26;',
+            '  }',
+            '  col += uSpecColor * smoothstep(0.06, 0.13, vWave) * 0.09;',
+            '  float fogDist = length(vWorldPos - cameraPosition);',
+            '  float fogFactor = 1.0 - exp(-pow(fogDist * 0.0175, 2.0));',
+            '  col = mix(col, uDeepColor * 0.92, clamp(fogFactor, 0.0, 1.0));',
+            '  gl_FragColor = vec4(col, 1.0);',
+            '}'
+          ].join('\n')
+        });
+
+        const waterMesh = new THREE.Mesh(new THREE.PlaneGeometry(120, 120, 96, 96), waterMat);
+        waterMesh.rotation.x = -Math.PI / 2;
+        waterMesh.receiveShadow = true;
+        scene.add(waterMesh);
+
+        // Shared Materials
+        const woodDarkMat = new THREE.MeshStandardMaterial({ color: 0x3b2c23, roughness: 0.88, metalness: 0.04 });
+        const woodPlankMat = new THREE.MeshStandardMaterial({ color: 0x574133, roughness: 0.84, metalness: 0.04 });
+        const woodTrimMat = new THREE.MeshStandardMaterial({ color: 0x2b1f19, roughness: 0.9, metalness: 0.05 });
+        brassMat = new THREE.MeshStandardMaterial({ color: 0xd9a85b, roughness: 0.35, metalness: 0.78 });
+        lanternGlassMat = new THREE.MeshStandardMaterial({
+          color: 0xfff5db,
+          emissive: THEMES[0].lanternHex,
+          emissiveIntensity: 1.6,
+          roughness: 0.2
+        });
+        teakMat = new THREE.MeshStandardMaterial({ color: 0x3b2a20, roughness: 0.85, metalness: 0.03, fog: false });
+        tarpMat = new THREE.MeshStandardMaterial({ color: 0xd9cfb8, roughness: 0.92, metalness: 0.0, fog: false });
+        ropeMat = new THREE.MeshStandardMaterial({ color: 0x806346, roughness: 0.95, fog: false });
+
+        const staticGroup = new THREE.Group();
+        scene.add(staticGroup);
+
+        // 1. Wooden Boardwalk Promenade
+        const promWidth = 10.6;
+        const promDepth = WORLD.promDepth;
+        const promY = WORLD.promY;
+
+        const promBase = new THREE.Mesh(new THREE.BoxGeometry(promWidth, 0.24, promDepth), woodTrimMat);
+        promBase.position.set(0, promY - 0.14, WORLD.promZ);
+        promBase.castShadow = true;
+        promBase.receiveShadow = true;
+        staticGroup.add(promBase);
+
+        const plankCount = 26;
+        const plankW = (promWidth - 0.2) / plankCount;
+        const plankGeo = new THREE.BoxGeometry(plankW - 0.035, 0.08, promDepth - 0.08);
+        for (let i = 0; i < plankCount; i++) {
+          const p = new THREE.Mesh(plankGeo, i % 3 === 0 ? woodDarkMat : woodPlankMat);
+          p.position.set(-promWidth / 2 + 0.1 + (i + 0.5) * plankW, promY + 0.01, WORLD.promZ);
+          p.castShadow = true;
+          p.receiveShadow = true;
+          staticGroup.add(p);
+        }
+
+        const postGeo = new THREE.CylinderGeometry(0.11, 0.13, 1.8, 10);
+        for (let x = -4.8; x <= 4.81; x += 1.6) {
+          for (const zOff of [-0.62, 0.62]) {
+            const post = new THREE.Mesh(postGeo, woodTrimMat);
+            post.position.set(x, promY - 0.9, WORLD.promZ + zOff);
+            post.castShadow = true;
+            staticGroup.add(post);
+          }
+        }
+
+        // 3 Glowing Wooden Pier Lanterns
+        const lanternXs = [-3.6, 0, 3.6];
+        pierLights = [];
+        for (let li = 0; li < lanternXs.length; li++) {
+          const lx = lanternXs[li];
+          const lGroup = new THREE.Group();
+          lGroup.position.set(lx, promY + 0.05, WORLD.promZ - 0.65);
+
+          const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, 1.45, 8), woodTrimMat);
+          pole.position.y = 0.72;
+          pole.castShadow = true;
+          lGroup.add(pole);
+
+          const arm = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.07, 0.42), woodTrimMat);
+          arm.position.set(0, 1.38, 0.16);
+          lGroup.add(arm);
+
+          const cap = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.14, 6), brassMat);
+          cap.position.set(0, 1.24, 0.32);
+          lGroup.add(cap);
+
+          const glass = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.09, 0.22, 6), lanternGlassMat);
+          glass.position.set(0, 1.08, 0.32);
+          lGroup.add(glass);
+
+          const pt = new THREE.PointLight(THEMES[0].lanternHex, 1.55, 8.5, 1.7);
+          pt.position.set(0, 1.05, 0.35);
+          lGroup.add(pt);
+          pierLights.push(pt);
+          staticGroup.add(lGroup);
+        }
+
+        // 2. Wooden Finger-Pier Slips (5 active + 6th animated Reserve Slip)
+        function buildFingerPier(x) {
+          const g = new THREE.Group();
+          const beam = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.16, 2.25), woodPlankMat);
+          beam.position.set(x, 0.28, WORLD.slipZ);
+          beam.castShadow = true;
+          beam.receiveShadow = true;
+          g.add(beam);
+
+          for (const pz of [WORLD.slipZ - 0.85, WORLD.slipZ + 0.95]) {
+            const piling = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.13, 1.3, 10), woodTrimMat);
+            piling.position.set(x, -0.15, pz);
+            piling.castShadow = true;
+            g.add(piling);
+          }
+
+          const bollard = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.09, 0.18, 8), brassMat);
+          bollard.position.set(x, 0.44, WORLD.slipZ + 0.92);
+          g.add(bollard);
+          return g;
+        }
+
+        for (let i = 0; i <= 5; i++) {
+          staticGroup.add(buildFingerPier(-4.2 + i * 1.4));
+        }
+
+        reservePierMesh = buildFingerPier(4.2);
+        reservePierMesh.position.y = -1.6;
+        reservePierMesh.visible = false;
+        staticGroup.add(reservePierMesh);
+
+        reserveGhostMat = new THREE.MeshBasicMaterial({
+          color: THEMES[0].lanternHex,
+          transparent: true,
+          opacity: 0.18,
+          side: THREE.DoubleSide,
+          depthWrite: false
+        });
+        reserveGhost = new THREE.Mesh(new THREE.PlaneGeometry(1.18, 2.1), reserveGhostMat);
+        reserveGhost.rotation.x = -Math.PI / 2;
+        reserveGhost.position.set(WORLD.slipXs[5], 0.09, WORLD.slipZ);
+        reserveGhost.userData = { isReserveGhost: true };
+        staticGroup.add(reserveGhost);
+
+        slipIndicators = [];
+        for (let i = 0; i < 6; i++) {
+          const mat = new THREE.MeshStandardMaterial({
+            color: 0x2b3545,
+            emissive: 0x000000,
+            emissiveIntensity: 0,
+            roughness: 0.35,
+            fog: false
+          });
+          const strip = new THREE.Mesh(new THREE.BoxGeometry(0.96, 0.09, 0.16), mat);
+          strip.position.set(WORLD.slipXs[i], promY + 0.025, WORLD.promZ + promDepth * 0.5 - 0.02);
+          staticGroup.add(strip);
+          slipIndicators.push({ mesh: strip, mat: mat });
+        }
+
+        // 3. Distant Rocky Islet & Rotating Lighthouse Beam
+        const isletGroup = new THREE.Group();
+        isletGroup.position.set(-12.5, 0, -14.5);
+
+        const rockMat = new THREE.MeshStandardMaterial({ color: 0x1e2633, roughness: 0.94 });
+        const rock1 = new THREE.Mesh(new THREE.DodecahedronGeometry(2.3, 1), rockMat);
+        rock1.scale.set(1.3, 0.55, 1.0);
+        rock1.position.y = 0.25;
+        isletGroup.add(rock1);
+
+        const rock2 = new THREE.Mesh(new THREE.DodecahedronGeometry(1.4, 0), rockMat);
+        rock2.scale.set(1.1, 0.65, 0.9);
+        rock2.position.set(1.5, 0.15, 0.7);
+        isletGroup.add(rock2);
+
+        const towerMat = new THREE.MeshStandardMaterial({ color: 0xe6dfd5, roughness: 0.7 });
+        const tower = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.52, 2.8, 12), towerMat);
+        tower.position.set(0, 2.1, 0);
+        isletGroup.add(tower);
+
+        const lhCap = new THREE.Mesh(new THREE.ConeGeometry(0.44, 0.52, 12), new THREE.MeshStandardMaterial({ color: 0xa63a3a, roughness: 0.5 }));
+        lhCap.position.set(0, 3.88, 0);
+        isletGroup.add(lhCap);
+
+        const lhLantern = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.38, 10), lanternGlassMat);
+        lhLantern.position.set(0, 3.55, 0);
+        isletGroup.add(lhLantern);
+
+        lhBeamPivot = new THREE.Group();
+        lhBeamPivot.position.set(0, 3.55, 0);
+        beamMat = new THREE.MeshBasicMaterial({
+          color: THEMES[0].lanternHex,
+          transparent: true,
+          opacity: 0.12,
+          side: THREE.DoubleSide,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending
+        });
+        const beamCone = new THREE.Mesh(new THREE.ConeGeometry(2.8, 18, 16, 1, true), beamMat);
+        beamCone.rotation.z = Math.PI / 2;
+        beamCone.position.x = 9.0;
+        lhBeamPivot.add(beamCone);
+        isletGroup.add(lhBeamPivot);
+        staticGroup.add(isletGroup);
+
+        // 4. Drifting Atmospheric 3D Motes
+        moteMat = new THREE.MeshBasicMaterial({
+          color: THEMES[0].moteHex,
+          transparent: true,
+          opacity: 0.78,
+          side: THREE.DoubleSide,
+          depthWrite: false
+        });
+        const moteGeo = new THREE.CircleGeometry(0.065, 6);
+        moteData = [];
+        for (let i = 0; i < 38; i++) {
+          const m = new THREE.Mesh(moteGeo, moteMat);
+          const item = {
+            mesh: m,
+            x: (Math.random() - 0.5) * 18,
+            y: 0.4 + Math.random() * 4.4,
+            z: -7 + Math.random() * 14,
+            vx: (Math.random() - 0.5) * 0.25,
+            vy: 0.12 + Math.random() * 0.22,
+            vz: (Math.random() - 0.5) * 0.2,
+            phase: Math.random() * Math.PI * 2,
+            rotSpd: 1.5 + Math.random() * 2.5
+          };
+          m.position.set(item.x, item.y, item.z);
+          scene.add(m);
+          moteData.push(item);
+        }
+
+        // 5. Sightline Water Path Preview Ribbon
+        sightlineMat = new THREE.MeshBasicMaterial({
+          color: THEMES[0].lanternHex,
+          transparent: true,
+          opacity: 0.34,
+          side: THREE.DoubleSide,
+          depthWrite: false
+        });
+        sightlineMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.32, 1), sightlineMat);
+        sightlineMesh.rotation.x = -Math.PI / 2;
+        sightlineMesh.visible = false;
+        scene.add(sightlineMesh);
+
+        // Dynamic Groups & Shared Effect Geometries (strictly r128)
+        gridFrameGroup = new THREE.Group();
+        boatsGroup = new THREE.Group();
+        pilingsGroup = new THREE.Group();
+        queueGroup = new THREE.Group();
+        effectsGroup = new THREE.Group();
+        scene.add(gridFrameGroup, boatsGroup, pilingsGroup, queueGroup, effectsGroup);
+
+        rippleGeo = new THREE.RingGeometry(0.18, 0.26, 24);
+        wakeGeo = new THREE.SphereGeometry(0.11, 7, 6);
+        sparkGeo = new THREE.DodecahedronGeometry(0.075, 0);
+
+        attachCanvasControls();
+        state.sceneReady = true;
+      }
+
+      /* =========================================================================
+         8. 3D MESH BUILDERS (HIGH-CONTRAST BOATS, EMBLEM PLATES & GUESTS)
+         ========================================================================= */
+      function getEmblemPlateTexture(colorIdx) {
+        if (emblemTexCache[colorIdx]) return emblemTexCache[colorIdx];
+        const THREE = window.THREE;
+        const c = HULL_COLORS[colorIdx];
+        const size = 256;
+        const cvs = document.createElement('canvas');
+        cvs.width = size;
+        cvs.height = size;
+        const ctx = cvs.getContext('2d');
+
+        ctx.fillStyle = c.badgeBg;
+        ctx.fillRect(0, 0, size, size);
+
+        ctx.strokeStyle = c.badgeFg;
+        ctx.lineWidth = 18;
+        ctx.strokeRect(14, 14, size - 28, size - 28);
+
+        ctx.fillStyle = c.badgeFg;
+        const cx = size * 0.5;
+        const cy = size * 0.5;
+
+        if (c.emblem === 'circle') {
+          ctx.beginPath();
+          ctx.arc(cx, cy, 66, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (c.emblem === 'triangle') {
+          ctx.beginPath();
+          ctx.moveTo(cx, cy - 72);
+          ctx.lineTo(cx + 76, cy + 62);
+          ctx.lineTo(cx - 76, cy + 62);
+          ctx.closePath();
+          ctx.fill();
+        } else if (c.emblem === 'diamond') {
+          ctx.beginPath();
+          ctx.moveTo(cx, cy - 76);
+          ctx.lineTo(cx + 76, cy);
+          ctx.lineTo(cx, cy + 76);
+          ctx.lineTo(cx - 76, cy);
+          ctx.closePath();
+          ctx.fill();
+        } else if (c.emblem === 'square') {
+          ctx.fillRect(cx - 58, cy - 58, 116, 116);
+        } else if (c.emblem === 'star') {
+          ctx.beginPath();
+          const outerR = 76;
+          const innerR = 32;
+          for (let i = 0; i < 10; i++) {
+            const ang = -Math.PI / 2 + (i * Math.PI) / 5;
+            const r = i % 2 === 0 ? outerR : innerR;
+            const px = cx + Math.cos(ang) * r;
+            const py = cy + Math.sin(ang) * r;
+            if (i === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          }
+          ctx.closePath();
+          ctx.fill();
+        } else {
+          // Bold Plus / Cross
+          ctx.fillRect(cx - 26, cy - 72, 52, 144);
+          ctx.fillRect(cx - 72, cy - 26, 144, 52);
+        }
+
+        const tex = new THREE.CanvasTexture(cvs);
+        tex.encoding = THREE.sRGBEncoding;
+        tex.needsUpdate = true;
+        emblemTexCache[colorIdx] = tex;
+        return tex;
+      }
+
+      function createHullGeometry(length, width, depth) {
+        const THREE = window.THREE;
+        const hw = width * 0.5;
+        const hl = length * 0.5;
+        const shape = new THREE.Shape();
+        shape.moveTo(-hw * 0.72, -hl);
+        shape.lineTo(hw * 0.72, -hl);
+        shape.quadraticCurveTo(hw, -hl * 0.85, hw, -hl * 0.35);
+        shape.lineTo(hw, hl * 0.32);
+        shape.quadraticCurveTo(hw * 0.92, hl * 0.78, 0, hl);
+        shape.quadraticCurveTo(-hw * 0.92, hl * 0.78, -hw, hl * 0.32);
+        shape.lineTo(-hw, -hl * 0.35);
+        shape.quadraticCurveTo(-hw, -hl * 0.85, -hw * 0.72, -hl);
+
+        const geo = new THREE.ExtrudeGeometry(shape, {
+          depth: depth,
+          bevelEnabled: true,
+          bevelThickness: 0.035,
+          bevelSize: 0.03,
+          bevelSegments: 2
+        });
+        geo.rotateX(Math.PI / 2);
+        geo.translate(0, depth * 0.55, 0);
+        return geo;
+      }
+
+      function create3DGuestMesh(colorIdx) {
+        const THREE = window.THREE;
+        const c = HULL_COLORS[colorIdx];
+        const g = new THREE.Group();
+
+        const baseMat = new THREE.MeshStandardMaterial({
+          color: c.hex,
+          emissive: c.hex,
+          emissiveIntensity: c.emissiveInt,
+          roughness: 0.42,
+          metalness: 0.04,
+          fog: false
+        });
+        const baseDisc = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.26, 0.055, 18), baseMat);
+        baseDisc.position.y = 0.028;
+        g.add(baseDisc);
+
+        // Glowing emblem plate on pedestal top
+        const plateMat = new THREE.MeshBasicMaterial({ map: getEmblemPlateTexture(colorIdx), fog: false });
+        const pedEmblem = new THREE.Mesh(new THREE.PlaneGeometry(0.24, 0.24), plateMat);
+        pedEmblem.rotation.x = -Math.PI / 2;
+        pedEmblem.position.set(0, 0.058, 0.04);
+        g.add(pedEmblem);
+
+        const rimMat = new THREE.MeshStandardMaterial({
+          color: c.trim,
+          emissive: c.darkTrim ? 0x000000 : c.trim,
+          emissiveIntensity: c.darkTrim ? 0 : 0.4,
+          roughness: 0.4,
+          fog: false
+        });
+        const baseRim = new THREE.Mesh(new THREE.TorusGeometry(0.245, 0.026, 6, 18), rimMat);
+        baseRim.rotation.x = Math.PI / 2;
+        baseRim.position.y = 0.052;
+        g.add(baseRim);
+
+        const coatMat = new THREE.MeshStandardMaterial({
+          color: c.hex,
+          emissive: c.hex,
+          emissiveIntensity: c.emissiveInt,
+          roughness: 0.45,
+          metalness: 0.04,
+          fog: false
+        });
+        const coat = new THREE.Mesh(new THREE.CylinderGeometry(0.105, 0.19, 0.36, 14), coatMat);
+        coat.position.y = 0.22;
+        coat.castShadow = true;
+        g.add(coat);
+
+        const collar = new THREE.Mesh(new THREE.TorusGeometry(0.105, 0.028, 6, 14), rimMat);
+        collar.rotation.x = Math.PI / 2;
+        collar.position.y = 0.39;
+        g.add(collar);
+
+        const head = new THREE.Mesh(
+          new THREE.SphereGeometry(0.088, 12, 10),
+          new THREE.MeshStandardMaterial({ color: 0xf7eee2, roughness: 0.5, fog: false })
+        );
+        head.position.y = 0.47;
+        head.castShadow = true;
+        g.add(head);
+
+        // Matching wide-brim coastal sun hat (unmistakable from top-down camera)
+        const hatBrim = new THREE.Mesh(new THREE.CylinderGeometry(0.23, 0.24, 0.032, 18), coatMat);
+        hatBrim.position.y = 0.545;
+        hatBrim.castShadow = true;
+        g.add(hatBrim);
+
+        const hatBand = new THREE.Mesh(new THREE.TorusGeometry(0.125, 0.024, 6, 16), rimMat);
+        hatBand.rotation.x = Math.PI / 2;
+        hatBand.position.y = 0.566;
+        g.add(hatBand);
+
+        const hatCrown = new THREE.Mesh(new THREE.CylinderGeometry(0.095, 0.125, 0.095, 16), coatMat);
+        hatCrown.position.y = 0.60;
+        g.add(hatCrown);
+
+        g.userData.baseMat = baseMat;
+        g.userData.baseEmissiveInt = c.emissiveInt;
+        return g;
+      }
+
+      function create3DBoatMesh(boat) {
+        const THREE = window.THREE;
+        const c = HULL_COLORS[boat.color];
+        const cs = WORLD.cellSize;
+        const length = boat.len * cs - 0.18;
+        const width = boat.capacity === 2 ? 0.72 : (boat.capacity === 4 ? 0.82 : 0.88);
+        const depth = 0.29;
+
+        const root = new THREE.Group();
+        const body = new THREE.Group();
+        root.add(body);
+
+        // 1. Hue-locked, fog-proof matte-satin lacquer hull
+        const baseEmissiveInt = c.emissiveInt;
+        const hullMat = new THREE.MeshStandardMaterial({
+          color: c.hex,
+          roughness: 0.45,
+          metalness: 0.04,
+          emissive: c.hex,
+          emissiveIntensity: baseEmissiveInt,
+          fog: false
+        });
+        const hull = new THREE.Mesh(createHullGeometry(length, width, depth), hullMat);
+        hull.castShadow = true;
+        hull.receiveShadow = true;
+        body.add(hull);
+
+        // 2. High-contrast gunwale rim & twin deck stripes
+        const trimMat = new THREE.MeshStandardMaterial({
+          color: c.trim,
+          emissive: c.darkTrim ? 0x000000 : c.trim,
+          emissiveIntensity: c.darkTrim ? 0 : 0.38,
+          roughness: 0.42,
+          metalness: 0.04,
+          fog: false
+        });
+        const trimBand = new THREE.Mesh(createHullGeometry(length + 0.032, width + 0.036, 0.062), trimMat);
+        trimBand.position.y = 0.145;
+        body.add(trimBand);
+
+        const stripeLen = length * 0.62;
+        const stripeGeo = new THREE.BoxGeometry(0.055, 0.022, stripeLen);
+        for (const side of [-1, 1]) {
+          const stripe = new THREE.Mesh(stripeGeo, trimMat);
+          stripe.position.set(side * (width * 0.36), 0.205, -length * 0.04);
+          body.add(stripe);
+        }
+
+        // 3. Recessed dark walnut accent floor strictly inside seating well
+        const wellLen = boat.capacity === 2 ? length * 0.38 : (boat.capacity === 4 ? length * 0.48 : length * 0.56);
+        const wellW = width * 0.56;
+        const wellZ = -length * 0.17;
+        const wellFloor = new THREE.Mesh(new THREE.BoxGeometry(wellW, 0.03, wellLen), teakMat);
+        wellFloor.position.set(0, 0.195, wellZ);
+        wellFloor.receiveShadow = true;
+        body.add(wellFloor);
+
+        // 4. Sculpted canopy roof + crisp upward-facing 2D canvas-textured emblem plate
+        const canopyW = width * 0.68;
+        const canopyL = 0.52;
+        const canopyZ = length * 0.22;
+
+        const cabinLower = new THREE.Mesh(new THREE.BoxGeometry(canopyW * 0.92, 0.14, canopyL * 0.88), trimMat);
+        cabinLower.position.set(0, 0.26, canopyZ);
+        cabinLower.castShadow = true;
+        body.add(cabinLower);
+
+        const canopyRoof = new THREE.Mesh(new THREE.BoxGeometry(canopyW, 0.095, canopyL), hullMat);
+        canopyRoof.position.set(0, 0.355, canopyZ);
+        canopyRoof.castShadow = true;
+        body.add(canopyRoof);
+
+        const plateMat = new THREE.MeshBasicMaterial({ map: getEmblemPlateTexture(boat.color), fog: false });
+        const plateSize = Math.min(canopyW * 0.84, canopyL * 0.84);
+        const emblemPlate = new THREE.Mesh(new THREE.PlaneGeometry(plateSize, plateSize), plateMat);
+        emblemPlate.rotation.x = -Math.PI / 2;
+        emblemPlate.position.set(0, 0.408, canopyZ);
+        body.add(emblemPlate);
+
+        // 5. Matching colored bow lantern + forward directional chevron
+        const bowBeadMat = new THREE.MeshStandardMaterial({
+          color: c.hex,
+          emissive: c.hex,
+          emissiveIntensity: 0.88,
+          roughness: 0.25,
+          fog: false
+        });
+        const bowLantern = new THREE.Mesh(new THREE.SphereGeometry(0.075, 12, 10), bowBeadMat);
+        bowLantern.position.set(0, 0.25, length * 0.465);
+        body.add(bowLantern);
+
+        const arrow = new THREE.Mesh(new THREE.ConeGeometry(0.115, 0.19, 3), trimMat);
+        arrow.rotation.x = Math.PI / 2;
+        arrow.position.set(0, 0.23, length * 0.385);
+        body.add(arrow);
+
+        // 6. Subtle colored waterline halo ring
+        const haloMat = new THREE.MeshBasicMaterial({
+          color: c.hex,
+          transparent: true,
+          opacity: 0.34,
+          side: THREE.DoubleSide,
+          depthWrite: false,
+          fog: false
+        });
+        const haloMesh = new THREE.Mesh(createHullGeometry(length + 0.26, width + 0.26, 0.015), haloMat);
+        haloMesh.position.y = 0.035;
+        body.add(haloMesh);
+
+        // 7. Recessed 3D Seats with colored cushions
+        const rows = boat.capacity === 2 ? 1 : (boat.capacity === 4 ? 2 : 3);
+        const startZ = rows === 1 ? wellZ : wellZ - wellLen * 0.32;
+        const endZ = rows === 1 ? wellZ : wellZ + wellLen * 0.32;
+        const stepZ = rows > 1 ? (endZ - startZ) / (rows - 1) : 0;
+        const seatX = wellW * 0.26;
+
+        const seatLocals = [];
+        const seatBaseGeo = new THREE.CylinderGeometry(0.115, 0.125, 0.035, 12);
+        const seatBaseMat = new THREE.MeshStandardMaterial({ color: 0x1e1611, roughness: 0.9, fog: false });
+        const cushionGeo = new THREE.CylinderGeometry(0.088, 0.095, 0.042, 12);
+        for (let r = 0; r < rows; r++) {
+          const sz = startZ + r * stepZ;
+          for (const sx of [-seatX, seatX]) {
+            const seatBase = new THREE.Mesh(seatBaseGeo, seatBaseMat);
+            seatBase.position.set(sx, 0.215, sz);
+            body.add(seatBase);
+
+            const cushion = new THREE.Mesh(cushionGeo, hullMat);
+            cushion.position.set(sx, 0.226, sz);
+            body.add(cushion);
+
+            seatLocals.push(new THREE.Vector3(sx, 0.22, sz));
+          }
+        }
+
+        const seatedGroup = new THREE.Group();
+        body.add(seatedGroup);
+
+        // Canvas Tarp (Level 2+ Mystery Boats)
+        let tarpGroup = null;
+        if (boat.mystery) {
+          tarpGroup = new THREE.Group();
+          const tarp = new THREE.Mesh(createHullGeometry(length + 0.07, width + 0.09, 0.42), tarpMat);
+          tarp.position.y = 0.19;
+          tarp.castShadow = true;
+          tarpGroup.add(tarp);
+
+          for (const rz of [-length * 0.22, length * 0.16]) {
+            const rope = new THREE.Mesh(new THREE.BoxGeometry(width + 0.15, 0.46, 0.055), ropeMat);
+            rope.position.set(0, 0.21, rz);
+            tarpGroup.add(rope);
+          }
+          body.add(tarpGroup);
+          haloMesh.visible = false;
+        }
+
+        // Brass Mooring Lock (Level 4+)
+        let lockGroup = null;
+        if (boat.lockCount > 0) {
+          lockGroup = new THREE.Group();
+          const band = new THREE.Mesh(new THREE.BoxGeometry(width + 0.13, 0.36, 0.09), brassMat);
+          band.position.set(0, 0.21, -0.05);
+          lockGroup.add(band);
+
+          const padlock = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.24, 0.16), brassMat);
+          padlock.position.set(0, 0.45, -0.05);
+          padlock.castShadow = true;
+          lockGroup.add(padlock);
+          body.add(lockGroup);
+        }
+
+        const hitbox = new THREE.Mesh(
+          new THREE.BoxGeometry(width + 0.26, 0.88, length + 0.26),
+          new THREE.MeshBasicMaterial({ visible: false })
+        );
+        hitbox.position.y = 0.28;
+        hitbox.userData = { boatId: boat.id };
+        root.add(hitbox);
+
+        root.userData = {
+          boatId: boat.id,
+          body: body,
+          hullMat: hullMat,
+          haloMesh: haloMesh,
+          haloMat: haloMat,
+          baseEmissiveHex: c.hex,
+          baseEmissiveInt: baseEmissiveInt,
+          seatLocals: seatLocals,
+          seatedGroup: seatedGroup,
+          tarpGroup: tarpGroup,
+          lockGroup: lockGroup,
+          hitbox: hitbox
+        };
+        return root;
+      }
+
+      function create3DPilingMesh() {
+        const THREE = window.THREE;
+        const g = new THREE.Group();
+        const mat = new THREE.MeshStandardMaterial({
+          color: 0x45372e,
+          roughness: 0.92,
+          emissive: 0x000000,
+          emissiveIntensity: 0
+        });
+        const rockM = new THREE.MeshStandardMaterial({ color: 0x262f3b, roughness: 0.95 });
+
+        const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.42, 0), rockM);
+        rock.scale.set(1.15, 0.55, 1.05);
+        rock.position.y = 0.06;
+        rock.castShadow = true;
+        g.add(rock);
+
+        const offsets = [
+          { x: -0.16, z: 0.12, h: 0.92, r: 0.11 },
+          { x: 0.17, z: 0.1, h: 0.78, r: 0.10 },
+          { x: 0.0, z: -0.15, h: 1.06, r: 0.12 }
+        ];
+        for (let i = 0; i < offsets.length; i++) {
+          const o = offsets[i];
+          const p = new THREE.Mesh(new THREE.CylinderGeometry(o.r * 0.9, o.r * 1.05, o.h, 8), mat);
+          p.position.set(o.x, o.h * 0.38, o.z);
+          p.rotation.z = o.x * 0.22;
+          p.castShadow = true;
+          g.add(p);
+        }
+
+        const foam = new THREE.Mesh(
+          new THREE.RingGeometry(0.36, 0.48, 18),
+          new THREE.MeshBasicMaterial({ color: 0xdff2ff, transparent: true, opacity: 0.24, side: THREE.DoubleSide, depthWrite: false })
+        );
+        foam.rotation.x = -Math.PI / 2;
+        foam.position.y = 0.05;
+        g.add(foam);
+
+        g.userData = { pilingMat: mat, foam: foam };
+        return g;
+      }
+
+      /* =========================================================================
+         9. COORDINATE HELPERS, EFFECTS & HARBOR VISUAL REBUILD
+         ========================================================================= */
+      function cellToWorld(r, c) {
+        const half = (state.gridSize - 1) * 0.5;
+        return new window.THREE.Vector3(
+          (c - half) * WORLD.cellSize,
+          0,
+          WORLD.gridCenterZ + (r - half) * WORLD.cellSize
+        );
+      }
+
+      function boatGridCenter(boat) {
+        const d = DIRS[boat.dir];
+        return cellToWorld(boat.r + d.dr * (boat.len - 1) * 0.5, boat.c + d.dc * (boat.len - 1) * 0.5);
+      }
+
+      function getPromenadeQueuePos(idx) {
+        return new window.THREE.Vector3(-3.75 + idx * 0.62, WORLD.promY + 0.06, WORLD.promZ + 0.18);
+      }
+
+      function spawn3DRipple(x, z, maxScale, hex) {
+        if (!state.sceneReady) return;
+        const THREE = window.THREE;
+        const mat = new THREE.MeshBasicMaterial({
+          color: hex !== undefined && hex !== null ? hex : state.theme.wakeHex,
+          transparent: true,
+          opacity: 0.62,
+          side: THREE.DoubleSide,
+          depthWrite: false
+        });
+        const m = new THREE.Mesh(rippleGeo, mat);
+        m.rotation.x = -Math.PI / 2;
+        m.position.set(x, 0.06, z);
+        effectsGroup.add(m);
+        state.ripples3D.push({ mesh: m, mat: mat, scale: 0.6, maxScale: maxScale || 3.2, life: 1.0 });
+      }
+
+      function spawn3DWake(x, z, vx, vz, hex) {
+        if (!state.sceneReady) return;
+        const THREE = window.THREE;
+        const mat = new THREE.MeshBasicMaterial({
+          color: hex !== undefined && hex !== null ? hex : state.theme.wakeHex,
+          transparent: true,
+          opacity: 0.55,
+          depthWrite: false
+        });
+        const m = new THREE.Mesh(wakeGeo, mat);
+        m.scale.set(1, 0.3, 1);
+        m.position.set(x, 0.05, z);
+        effectsGroup.add(m);
+        state.wakes3D.push({ mesh: m, mat: mat, vx: vx, vz: vz, life: 1.0 });
+      }
+
+      function spawn3DSparkles(x, y, z, count, hex) {
+        if (!state.sceneReady) return;
+        const THREE = window.THREE;
+        const col = hex !== undefined && hex !== null ? hex : state.theme.lanternHex;
+        const n = count || 12;
+        for (let i = 0; i < n; i++) {
+          const mat = new THREE.MeshBasicMaterial({
+            color: i % 2 === 0 ? 0xfff8e6 : col,
+            transparent: true,
+            opacity: 1.0,
+            depthWrite: false
+          });
+          const m = new THREE.Mesh(sparkGeo, mat);
+          m.position.set(x, y, z);
+          effectsGroup.add(m);
+          const ang = Math.random() * Math.PI * 2;
+          const spd = 0.8 + Math.random() * 1.8;
+          state.sparkles3D.push({
+            mesh: m, mat: mat,
+            vx: Math.cos(ang) * spd,
+            vy: 1.4 + Math.random() * 2.0,
+            vz: Math.sin(ang) * spd,
+            life: 1.0
+          });
+        }
+      }
+
+      function clearGroup(grp) {
+        if (!grp) return;
+        while (grp.children.length > 0) {
+          grp.remove(grp.children[0]);
+        }
+      }
+
+      function rebuildHarborVisuals() {
+        if (!state.sceneReady) return;
+        const THREE = window.THREE;
+        clearGroup(gridFrameGroup);
+        clearGroup(boatsGroup);
+        clearGroup(pilingsGroup);
+        clearGroup(queueGroup);
+        clearGroup(effectsGroup);
+        state.ripples3D = [];
+        state.wakes3D = [];
+        state.sparkles3D = [];
+        state.flyingTarps = [];
+
+        const dotGeo = new THREE.CylinderGeometry(0.045, 0.045, 0.02, 8);
+        const dotMat = new THREE.MeshBasicMaterial({
+          color: state.theme.lanternHex,
+          transparent: true,
+          opacity: 0.2
+        });
+        for (let r = 0; r < state.gridSize; r++) {
+          for (let c = 0; c < state.gridSize; c++) {
+            const p = cellToWorld(r, c);
+            const dot = new THREE.Mesh(dotGeo, dotMat);
+            dot.position.set(p.x, 0.03, p.z);
+            gridFrameGroup.add(dot);
+          }
+        }
+
+        for (let i = 0; i < state.pilings.length; i++) {
+          const pl = state.pilings[i];
+          const mesh = create3DPilingMesh();
+          const p = cellToWorld(pl.r, pl.c);
+          mesh.position.set(p.x, 0, p.z);
+          pl.mesh = mesh;
+          pilingsGroup.add(mesh);
+        }
+
+        for (let i = 0; i < state.boats.length; i++) {
+          const b = state.boats[i];
+          const mesh = create3DBoatMesh(b);
+          const p = boatGridCenter(b);
+          mesh.position.set(p.x, 0, p.z);
+          mesh.rotation.y = DIRS[b.dir].yaw;
+          b.mesh = mesh;
+          boatsGroup.add(mesh);
+        }
+
+        for (let i = 0; i < state.slips.length; i++) {
+          const s = state.slips[i];
+          if (s.boat) {
+            const mesh = create3DBoatMesh({
+              id: s.boat.id, len: s.boat.len, capacity: s.boat.capacity,
+              color: s.boat.color, mystery: false, lockCount: 0
+            });
+            mesh.position.set(WORLD.slipXs[i], 0, WORLD.slipZ);
+            mesh.rotation.y = Math.PI;
+            for (let k = 0; k < s.boat.filled; k++) {
+              const gMesh = create3DGuestMesh(s.boat.color);
+              gMesh.position.copy(mesh.userData.seatLocals[k]);
+              gMesh.scale.setScalar(0.84);
+              mesh.userData.seatedGroup.add(gMesh);
+            }
+            s.boat.mesh = mesh;
+            boatsGroup.add(mesh);
+          }
+        }
+
+        reservePierMesh.visible = state.reserveUnlocked;
+        reservePierMesh.position.y = state.reserveUnlocked ? 0 : -1.6;
+        reserveGhost.visible = !state.reserveUnlocked;
+
+        rebuildQueueVisuals();
+      }
+
+      function rebuildQueueVisuals() {
+        if (!state.sceneReady) return;
+        clearGroup(queueGroup);
+        queueMeshes.length = 0;
+        const maxVis = Math.min(state.queue.length, 13);
+        for (let i = 0; i < maxVis; i++) {
+          const m = create3DGuestMesh(state.queue[i]);
+          m.position.copy(getPromenadeQueuePos(i));
+          m.userData.targetPos = m.position.clone();
+          m.userData.colorIdx = state.queue[i];
+          queueGroup.add(m);
+          queueMeshes.push(m);
+        }
+      }
+
+      function shiftQueueVisuals() {
+        if (!state.sceneReady) return;
+        if (queueMeshes.length > 0) {
+          const popped = queueMeshes.shift();
+          queueGroup.remove(popped);
+        }
+        const maxVis = Math.min(state.queue.length, 13);
+        while (queueMeshes.length < maxVis) {
+          const idx = queueMeshes.length;
+          const m = create3DGuestMesh(state.queue[idx]);
+          m.position.copy(getPromenadeQueuePos(idx + 1));
+          m.userData.targetPos = getPromenadeQueuePos(idx);
+          queueGroup.add(m);
+          queueMeshes.push(m);
+        }
+        for (let i = 0; i < queueMeshes.length; i++) {
+          queueMeshes[i].userData.targetPos = getPromenadeQueuePos(i);
+        }
+      }
+
+      /* =========================================================================
+         10. THEME APPLICATION
+         ========================================================================= */
+      function resolveTheme() {
+        if (state.themeMode === 'auto') {
+          const idx = state.mode === 'daily'
+            ? (hashString(state.dateKey) % THEMES.length)
+            : ((state.levelNum - 1) % THEMES.length);
+          state.theme = THEMES[idx];
+        } else {
+          state.theme = THEMES.find(function (t) { return t.id === state.themeMode; }) || THEMES[0];
+        }
+        applyThemeTo3D();
+      }
+
+      function applyThemeTo3D() {
+        const T = state.theme;
+        document.documentElement.style.setProperty('--accent', T.lanternCss);
+        if (!state.sceneReady) return;
+        const THREE = window.THREE;
+
+        scene.background.setHex(T.skyHex);
+        scene.fog.color.setHex(T.fogHex);
+
+        waterUniforms.uDeepColor.value.setHex(T.waterDeep);
+        waterUniforms.uShallowColor.value.setHex(T.waterShallow);
+        waterUniforms.uSpecColor.value.setHex(T.specular);
+        waterUniforms.uLanternColor.value.setHex(T.lanternHex);
+
+        hemiLight.color.setHex(T.hemiSky);
+        hemiLight.groundColor.setHex(T.hemiGround);
+        moonLight.color.setHex(T.moonHex).lerp(new THREE.Color(0xffffff), 0.48);
+        lanternGlassMat.emissive.setHex(T.lanternHex);
+        beamMat.color.setHex(T.lanternHex);
+        reserveGhostMat.color.setHex(T.lanternHex);
+        moteMat.color.setHex(T.moteHex);
+
+        for (let i = 0; i < pierLights.length; i++) {
+          pierLights[i].color.setHex(T.lanternHex);
+        }
+      }
+
+      /* =========================================================================
+         11. SNAPSHOT, UNDO & LEVEL LOADING
+         ========================================================================= */
+      function createSnapshot() {
+        const settledSlips = state.slips.map(function (s) {
+          if (s.state === 'departing') return { locked: s.locked, state: 'empty', boat: null };
+          if (s.boat) {
+            return {
+              locked: s.locked,
+              state: 'docked',
+              boat: {
+                id: s.boat.id, color: s.boat.color, capacity: s.boat.capacity, len: s.boat.len,
+                filled: s.boat.reservedSeats, reservedSeats: s.boat.reservedSeats,
+                dip: 0, rockVel: 0, pauseT: 0
+              }
+            };
+          }
+          return { locked: s.locked, state: 'empty', boat: null };
+        });
+
+        let extraDep = 0;
+        for (let i = 0; i < settledSlips.length; i++) {
+          const s = settledSlips[i];
+          if (s.boat && s.boat.filled >= s.boat.capacity) {
+            s.boat = null;
+            s.state = 'empty';
+            extraDep++;
+          }
+        }
+
+        const settledBoats = state.boats.map(function (b) {
+          return {
+            id: b.id, r: b.r, c: b.c, len: b.len, dir: b.dir,
+            capacity: b.capacity, color: b.color,
+            mystery: b.mystery,
+            lockCount: Math.max(0, b.lockCount - extraDep),
+            state: 'idle', bumpT: 0, highlightT: 0
+          };
+        });
+
+        return {
+          boats: settledBoats,
+          queue: state.queue.slice(),
+          guestsBoarded: state.totalGuests - state.queue.length,
+          slips: settledSlips,
+          reserveUnlocked: state.reserveUnlocked,
+          movesCount: state.movesCount
+        };
+      }
+
+      function restoreSnapshot(snap) {
+        if (!snap) return;
+        if (state.sceneReady) {
+          for (let i = 0; i < state.sailingBoats.length; i++) {
+            if (state.sailingBoats[i].mesh) boatsGroup.remove(state.sailingBoats[i].mesh);
+          }
+          for (let i = 0; i < state.hoppingGuests.length; i++) {
+            if (state.hoppingGuests[i].mesh) effectsGroup.remove(state.hoppingGuests[i].mesh);
+          }
+          if (sightlineMesh) sightlineMesh.visible = false;
+        }
+        state.sailingBoats = [];
+        state.hoppingGuests = [];
+        state.hoveredBoatId = -1;
+
+        state.boats = snap.boats.map(function (b) { return Object.assign({}, b); });
+        state.queue = snap.queue.slice();
+        state.guestsBoarded = snap.guestsBoarded;
+        state.slips = snap.slips.map(function (s) {
+          return { locked: s.locked, state: s.state, boat: s.boat ? Object.assign({}, s.boat) : null };
+        });
+        state.reserveUnlocked = snap.reserveUnlocked;
+        state.reserveAnim = snap.reserveUnlocked ? 1 : 0;
+        state.movesCount = snap.movesCount;
+        state.boardCooldown = 0.1;
+        state.fullCheckDelay = 0;
+
+        rebuildHarborVisuals();
+        hideAllModals();
+        updateHUD();
+      }
+
+      function pushUndo() {
+        state.undoStack.push(createSnapshot());
+        if (state.undoStack.length > 80) state.undoStack.shift();
+        updateHUD();
+      }
+
+      function performUndo() {
+        if (state.undoStack.length === 0) return;
+        sound.unlock();
+        sound.playUndo();
+        restoreSnapshot(state.undoStack.pop());
+      }
+
+      function loadHarbor(mode, levelNum) {
+        state.mode = mode;
+        if (mode === 'journey') {
+          state.levelNum = Math.max(1, levelNum | 0);
+          safeSetStorage('slipway3d_level', state.levelNum);
+        } else {
+          state.dateKey = getTodayKey();
+        }
+
+        resolveTheme();
+        const lvl = generateHarborLevel(state.levelNum, state.mode, state.dateKey);
+
+        state.gridSize = lvl.gridSize;
+        state.boats = lvl.boats;
+        state.pilings = lvl.pilings;
+        state.queue = lvl.queue;
+        state.totalGuests = lvl.totalGuests;
+        state.guestsBoarded = 0;
+        state.reserveUnlocked = false;
+        state.reserveAnim = 0;
+        state.movesCount = 0;
+        state.assistsUsed = 0;
+
+        state.slips = [
+          { locked: false, state: 'empty', boat: null },
+          { locked: false, state: 'empty', boat: null },
+          { locked: false, state: 'empty', boat: null },
+          { locked: false, state: 'empty', boat: null },
+          { locked: false, state: 'empty', boat: null },
+          { locked: true,  state: 'empty', boat: null }
+        ];
+
+        state.sailingBoats = [];
+        state.hoppingGuests = [];
+        state.undoStack = [];
+        state.hoveredBoatId = -1;
+        state.boardCooldown = 0.12;
+        state.fullCheckDelay = 0;
+
+        updateCameraFraming();
+        rebuildHarborVisuals();
+        state.initialSnapshot = createSnapshot();
+        hideAllModals();
+        updateHUD();
+        renderPaletteChips();
+      }
+
+      /* =========================================================================
+         12. CORE 3D GAMEPLAY ACTIONS
+         ========================================================================= */
+      function findEmptySlipIndex() {
+        for (let i = 0; i < state.slips.length; i++) {
+          if (!state.slips[i].locked && state.slips[i].state === 'empty') return i;
+        }
+        return -1;
+      }
+
+      function checkMysteryReveals() {
+        let poppedAny = false;
+        const THREE = window.THREE;
+        for (let i = 0; i < state.boats.length; i++) {
+          const b = state.boats[i];
+          if (!b.mystery) continue;
+          if (!findFirstBlocker(b, state.boats, state.pilings, state.gridSize)) {
+            b.mystery = false;
+            poppedAny = true;
+            if (b.mesh && b.mesh.userData.tarpGroup) {
+              const tarp = b.mesh.userData.tarpGroup;
+              const worldPos = new THREE.Vector3();
+              const worldQuat = new THREE.Quaternion();
+              tarp.getWorldPosition(worldPos);
+              tarp.getWorldQuaternion(worldQuat);
+
+              b.mesh.userData.body.remove(tarp);
+              b.mesh.userData.tarpGroup = null;
+              if (b.mesh.userData.haloMesh) b.mesh.userData.haloMesh.visible = true;
+              tarp.position.copy(worldPos);
+              tarp.quaternion.copy(worldQuat);
+              effectsGroup.add(tarp);
+
+              state.flyingTarps.push({
+                mesh: tarp,
+                vx: (Math.random() - 0.5) * 1.6,
+                vy: 3.2,
+                vz: -1.1 - Math.random() * 0.8,
+                rx: 2.8 + Math.random() * 2,
+                rz: (Math.random() - 0.5) * 4,
+                life: 1.0
+              });
+
+              spawn3DRipple(worldPos.x, worldPos.z, 2.8, state.theme.lanternHex);
+              spawn3DSparkles(worldPos.x, 0.5, worldPos.z, 10);
+            }
+          }
+        }
+        if (poppedAny) sound.playUnwrap();
+      }
+
+      function tickMooringChains() {
+        let releasedAny = false;
+        for (let i = 0; i < state.boats.length; i++) {
+          const b = state.boats[i];
+          if (b.lockCount > 0) {
+            b.lockCount--;
+            const p = boatGridCenter(b);
+            spawn3DRipple(p.x, p.z, 2.6, state.theme.lanternHex);
+            if (b.lockCount === 0) {
+              releasedAny = true;
+              if (b.mesh && b.mesh.userData.lockGroup) {
+                b.mesh.userData.body.remove(b.mesh.userData.lockGroup);
+                b.mesh.userData.lockGroup = null;
+              }
+              spawn3DSparkles(p.x, 0.5, p.z, 16, state.theme.lanternHex);
+            }
+          }
+        }
+        if (releasedAny) {
+          sound.playChainRelease();
+          showToast('Mooring chain snapped open');
+        }
+      }
+
+      function buildLaunchSpline(boat, slipIdx) {
+        const THREE = window.THREE;
+        const start = boatGridCenter(boat);
+        const slipX = WORLD.slipXs[slipIdx];
+        const slipZ = WORLD.slipZ;
+        const halfExtent = (state.gridSize * WORLD.cellSize) * 0.5 + 0.85;
+        const pts = [start.clone()];
+
+        if (boat.dir === 'N') {
+          pts.push(new THREE.Vector3(start.x, 0, WORLD.channelZ + 0.35));
+          pts.push(new THREE.Vector3((start.x + slipX) * 0.5, 0, WORLD.channelZ - 0.1));
+          pts.push(new THREE.Vector3(slipX, 0, WORLD.channelZ - 0.45));
+          pts.push(new THREE.Vector3(slipX, 0, slipZ));
+        } else if (boat.dir === 'E' || boat.dir === 'W') {
+          const sideX = boat.dir === 'E' ? Math.max(halfExtent, 4.35) : -Math.max(halfExtent, 4.35);
+          pts.push(new THREE.Vector3(sideX, 0, start.z));
+          pts.push(new THREE.Vector3(sideX, 0, WORLD.channelZ));
+          pts.push(new THREE.Vector3(slipX, 0, WORLD.channelZ));
+          pts.push(new THREE.Vector3(slipX, 0, slipZ));
+        } else {
+          const goRight = slipX >= start.x;
+          const sideX = goRight ? Math.max(halfExtent, 4.45) : -Math.max(halfExtent, 4.45);
+          const botZ = WORLD.gridCenterZ + halfExtent;
+          pts.push(new THREE.Vector3(start.x, 0, botZ));
+          pts.push(new THREE.Vector3(sideX, 0, botZ));
+          pts.push(new THREE.Vector3(sideX, 0, WORLD.channelZ));
+          pts.push(new THREE.Vector3(slipX, 0, WORLD.channelZ));
+          pts.push(new THREE.Vector3(slipX, 0, slipZ));
+        }
+
+        return new THREE.CatmullRomCurve3(pts, false, 'catmullrom', 0.35);
+      }
+
+      function buildDepartureSpline(slipIdx) {
+        const THREE = window.THREE;
+        const slipX = WORLD.slipXs[slipIdx];
+        const goLeft = slipIdx < 3;
+        const sideX = goLeft ? -16.5 : 16.5;
+        return new THREE.CatmullRomCurve3([
+          new THREE.Vector3(slipX, 0, WORLD.slipZ),
+          new THREE.Vector3(slipX, 0, WORLD.channelZ + 0.15),
+          new THREE.Vector3(slipX + (goLeft ? -3.2 : 3.2), 0, WORLD.channelZ - 0.15),
+          new THREE.Vector3(sideX, 0, WORLD.channelZ - 1.2)
+        ], false, 'catmullrom', 0.4);
+      }
+
+      function handleBoatTap(boat) {
+        if (boat.state !== 'idle') return;
+        sound.unlock();
+
+        if (boat.lockCount > 0) {
+          boat.state = 'bumping';
+          boat.bumpT = 0;
+          sound.playChainClink();
+          const p = boatGridCenter(boat);
+          spawn3DRipple(p.x, p.z, 2.2, state.theme.lanternHex);
+          showToast('Moored — departs after ' + boat.lockCount + ' more full ' + (boat.lockCount === 1 ? 'vessel' : 'vessels'));
+          return;
+        }
+
+        const blocker = findFirstBlocker(boat, state.boats, state.pilings, state.gridSize);
+        if (blocker) {
+          boat.state = 'bumping';
+          boat.bumpT = 0;
+          blocker.obj.highlightT = 1.0;
+          sound.playBump();
+          const p = boatGridCenter(boat);
+          spawn3DRipple(p.x, p.z, 2.1, 0xffa88a);
+          return;
+        }
+
+        const slipIdx = findEmptySlipIndex();
+        if (slipIdx === -1) {
+          sound.playBump();
+          showToast(state.reserveUnlocked ? 'All slips are occupied' : 'Slips full — tap +1 Slip to extend Reserve');
+          state.fullCheckDelay = 0.35;
+          return;
+        }
+
+        pushUndo();
+        state.movesCount++;
+        if (sightlineMesh) sightlineMesh.visible = false;
+
+        const boatMesh = boat.mesh;
+        state.slips[slipIdx].state = 'incoming';
+        state.slips[slipIdx].boat = {
+          id: boat.id, color: boat.color, capacity: boat.capacity, len: boat.len,
+          filled: 0, reservedSeats: 0, dip: 0, rockVel: 0, pauseT: 0,
+          mesh: boatMesh
+        };
+
+        const curve = buildLaunchSpline(boat, slipIdx);
+        const arcLen = curve.getLength();
+        const dur = Math.max(0.45, Math.min(0.92, arcLen / 10.5));
+
+        state.sailingBoats.push({
+          kind: 'to_slip',
+          boatId: boat.id,
+          slipIdx: slipIdx,
+          mesh: boatMesh,
+          curve: curve,
+          t: 0,
+          dur: dur,
+          prevYaw: boatMesh.rotation.y,
+          wakeAcc: 0
+        });
+
+        const startP = boatGridCenter(boat);
+        spawn3DRipple(startP.x, startP.z, 2.8);
+        state.boats = state.boats.filter(function (b) { return b.id !== boat.id; });
+
+        checkMysteryReveals();
+        sound.playLaunch();
+        updateHUD();
+      }
+
+      function unlockReserveSlip() {
+        if (state.reserveUnlocked) return;
+        sound.unlock();
+        pushUndo();
+        state.reserveUnlocked = true;
+        state.slips[5].locked = false;
+        state.reserveAnim = 0.001;
+        if (reservePierMesh) reservePierMesh.visible = true;
+        if (reserveGhost) reserveGhost.visible = false;
+        sound.playUnwrap();
+        hideAllModals();
+        spawn3DRipple(WORLD.slipXs[5], WORLD.slipZ, 3.6, state.theme.lanternHex);
+        spawn3DSparkles(WORLD.slipXs[5], 0.4, WORLD.slipZ, 16, state.theme.lanternHex);
+        updateHUD();
+        showToast('6th Reserve Slip extended');
+      }
+
+      function callNextMatchAssist() {
+        sound.unlock();
+        const dockedColors = new Set();
+        for (let i = 0; i < state.slips.length; i++) {
+          const s = state.slips[i];
+          if (!s.locked && s.state === 'docked' && s.boat && s.boat.reservedSeats < s.boat.capacity) {
+            dockedColors.add(s.boat.color);
+          }
+        }
+        if (dockedColors.size === 0 || state.queue.length === 0) return;
+
+        const idx = state.queue.findIndex(function (c) { return dockedColors.has(c); });
+        if (idx <= 0) {
+          hideAllModals();
+          return;
+        }
+
+        pushUndo();
+        state.assistsUsed++;
+        const targetColor = state.queue[idx];
+        let end = idx;
+        while (end + 1 < state.queue.length && state.queue[end + 1] === targetColor && (end - idx) < 2) end++;
+        const pulled = state.queue.splice(idx, end - idx + 1);
+        state.queue.unshift.apply(state.queue, pulled);
+
+        rebuildQueueVisuals();
+        sound.playUnwrap();
+        hideAllModals();
+        state.boardCooldown = 0.08;
+        showToast('Matching guests called forward');
+      }
+
+      /* =========================================================================
+         13. SIMULATION & 3D JUICE LOOP
+         ========================================================================= */
+      function normalizeAngleDelta(a) {
+        while (a > Math.PI) a -= Math.PI * 2;
+        while (a < -Math.PI) a += Math.PI * 2;
+        return a;
+      }
+
+      function updateSimulation(dt, timeSec) {
+        const THREE = window.THREE;
+
+        // 1. Rising 6th Reserve Slip pier animation
+        if (state.reserveUnlocked && state.reserveAnim < 1 && reservePierMesh) {
+          state.reserveAnim = Math.min(1, state.reserveAnim + dt * 2.4);
+          const ease = 1 - Math.pow(1 - state.reserveAnim, 3);
+          reservePierMesh.position.y = -1.6 + 1.6 * ease;
+        }
+
+        // 2. Grid boats buoyancy, hover lift, bump recoil & obstacle highlight
+        for (let i = 0; i < state.boats.length; i++) {
+          const b = state.boats[i];
+          if (!b.mesh) continue;
+          const baseP = boatGridCenter(b);
+          const body = b.mesh.userData.body;
+          const hullMat = b.mesh.userData.hullMat;
+
+          let offX = 0;
+          let offZ = 0;
+          let pitch = 0;
+          if (b.state === 'bumping') {
+            b.bumpT += dt * 5.2;
+            const d = DIRS[b.dir];
+            if (b.bumpT >= 1) {
+              b.state = 'idle';
+              b.bumpT = 0;
+            } else {
+              const k = Math.sin(b.bumpT * Math.PI) * Math.exp(-b.bumpT * 1.4);
+              offX = d.dc * k * 0.42;
+              offZ = d.dr * k * 0.42;
+              pitch = -k * 0.22;
+            }
+          }
+
+          const isHover = (b.id === state.hoveredBoatId && b.state === 'idle');
+          const bob = Math.sin(timeSec * 1.9 + b.id * 1.4) * 0.045 + (isHover ? 0.08 : 0);
+          b.mesh.position.set(baseP.x + offX, bob, baseP.z + offZ);
+          body.rotation.x = pitch + Math.sin(timeSec * 1.5 + b.id) * 0.035;
+          body.rotation.z = Math.cos(timeSec * 1.7 + b.id * 1.2) * 0.042;
+
+          if (b.highlightT > 0) {
+            b.highlightT = Math.max(0, b.highlightT - dt * 2.4);
+            hullMat.emissive.setHex(0xff5e42);
+            hullMat.emissiveIntensity = b.highlightT * 0.75;
+          } else if (isHover) {
+            hullMat.emissive.setHex(b.mesh.userData.baseEmissiveHex);
+            hullMat.emissiveIntensity = b.mesh.userData.baseEmissiveInt + 0.22;
+            if (b.mesh.userData.haloMat) b.mesh.userData.haloMat.opacity = 0.62;
+          } else {
+            hullMat.emissive.setHex(b.mesh.userData.baseEmissiveHex);
+            hullMat.emissiveIntensity = b.mesh.userData.baseEmissiveInt;
+            if (b.mesh.userData.haloMat) b.mesh.userData.haloMat.opacity = 0.34;
+          }
+        }
+
+        // 3. Sea Stack pilings foam & highlight
+        for (let i = 0; i < state.pilings.length; i++) {
+          const pl = state.pilings[i];
+          if (!pl.mesh) continue;
+          const f = 1 + Math.sin(timeSec * 2.2 + pl.seed * 6) * 0.08;
+          pl.mesh.userData.foam.scale.set(f, f, 1);
+          if (pl.highlightT > 0) {
+            pl.highlightT = Math.max(0, pl.highlightT - dt * 2.4);
+            pl.mesh.userData.pilingMat.emissive.setHex(0xff5e42);
+            pl.mesh.userData.pilingMat.emissiveIntensity = pl.highlightT * 0.7;
+          } else {
+            pl.mesh.userData.pilingMat.emissiveIntensity = 0;
+          }
+        }
+
+        // 4. Curved 3D Sailing Boats (to slip & out to twilight sea)
+        for (let i = state.sailingBoats.length - 1; i >= 0; i--) {
+          const sb = state.sailingBoats[i];
+          sb.t += dt / sb.dur;
+          const u = Math.min(1, sb.t);
+          const eased = sb.kind === 'to_sea'
+            ? u * u
+            : (u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2);
+
+          const pos = sb.curve.getPoint(eased);
+          const tan = sb.curve.getTangent(eased);
+          const yaw = Math.atan2(tan.x, tan.z);
+          const yawRate = normalizeAngleDelta(yaw - sb.prevYaw) / Math.max(0.008, dt);
+          sb.prevYaw = yaw;
+
+          sb.mesh.position.set(pos.x, 0.04, pos.z);
+          sb.mesh.rotation.y = yaw;
+
+          const body = sb.mesh.userData.body;
+          const throttlePitch = sb.kind === 'to_sea'
+            ? -0.14 * Math.min(1, u * 3)
+            : -0.11 * Math.sin(u * Math.PI);
+          body.rotation.x += (throttlePitch - body.rotation.x) * Math.min(1, dt * 10);
+          const targetRoll = Math.max(-0.26, Math.min(0.26, -yawRate * 0.065));
+          body.rotation.z += (targetRoll - body.rotation.z) * Math.min(1, dt * 10);
+
+          if (sb.kind === 'to_sea' && u > 0.65) {
+            sb.mesh.scale.setScalar(Math.max(0.01, 1 - (u - 0.65) / 0.35));
+          }
+
+          sb.wakeAcc += dt;
+          if (sb.wakeAcc >= 0.032) {
+            sb.wakeAcc = 0;
+            const backX = pos.x - tan.x * 0.65;
+            const backZ = pos.z - tan.z * 0.65;
+            const perpX = -tan.z;
+            const perpZ = tan.x;
+            const wCol = sb.kind === 'to_sea' ? state.theme.lanternHex : state.theme.wakeHex;
+            for (const side of [-1, 1]) {
+              spawn3DWake(
+                backX + perpX * side * 0.25,
+                backZ + perpZ * side * 0.25,
+                perpX * side * 0.45 - tan.x * 0.3,
+                perpZ * side * 0.45 - tan.z * 0.3,
+                wCol
+              );
+            }
+          }
+
+          if (sb.t >= 1) {
+            if (sb.kind === 'to_slip') {
+              const slip = state.slips[sb.slipIdx];
+              if (slip && slip.boat && slip.boat.id === sb.boatId) {
+                slip.state = 'docked';
+                slip.boat.dip = 0.22;
+                slip.boat.rockVel = 1.6;
+                sb.mesh.position.set(WORLD.slipXs[sb.slipIdx], 0, WORLD.slipZ);
+                sb.mesh.rotation.y = Math.PI;
+                spawn3DRipple(WORLD.slipXs[sb.slipIdx], WORLD.slipZ, 2.5);
+              }
+            } else {
+              boatsGroup.remove(sb.mesh);
+              checkWinCondition();
+            }
+            state.sailingBoats.splice(i, 1);
+          }
+        }
+
+        // 5. Docked Boats & Slip Indicators (with live boarding-match pulse)
+        const activeFrontColor = state.queue.length > 0 ? state.queue[0] : -1;
+        for (let i = 0; i < state.slips.length; i++) {
+          const s = state.slips[i];
+          const ind = slipIndicators[i];
+          const isMatch = !!(s.boat && s.state === 'docked' && s.boat.color === activeFrontColor && s.boat.reservedSeats < s.boat.capacity);
+          const matchPulse = isMatch ? (0.5 + 0.5 * Math.sin(timeSec * 8.0)) : 0;
+
+          if (ind) {
+            ind.mesh.visible = !s.locked;
+            if (s.boat) {
+              const sc = HULL_COLORS[s.boat.color];
+              ind.mat.color.setHex(sc.hex);
+              ind.mat.emissive.setHex(sc.hex);
+              ind.mat.emissiveIntensity = (sc.darkTrim ? 0.45 : 0.68) + matchPulse * 0.42;
+            } else {
+              ind.mat.color.setHex(0x283344);
+              ind.mat.emissive.setHex(0x000000);
+              ind.mat.emissiveIntensity = 0;
+            }
+          }
+
+          if (!s.boat || !s.boat.mesh || s.state === 'incoming') continue;
+
+          if (s.boat.mesh.userData.haloMat) {
+            s.boat.mesh.userData.haloMat.opacity = isMatch ? (0.48 + matchPulse * 0.36) : 0.34;
+          }
+
+          if (s.boat.dip > 0) s.boat.dip = Math.max(0, s.boat.dip - dt * 1.15);
+          if (Math.abs(s.boat.rockVel) > 0.01) s.boat.rockVel *= Math.exp(-dt * 4.5);
+
+          const bob = Math.sin(timeSec * 2.1 + i * 1.4) * 0.04 - s.boat.dip;
+          s.boat.mesh.position.set(WORLD.slipXs[i], bob, WORLD.slipZ);
+          const body = s.boat.mesh.userData.body;
+          body.rotation.x = Math.sin(timeSec * 1.6 + i) * 0.03 + s.boat.dip * 0.4;
+          body.rotation.z = Math.cos(timeSec * 1.8 + i) * 0.04 + Math.sin(timeSec * 11) * s.boat.rockVel * 0.08;
+
+          if (s.state === 'full_pause') {
+            s.boat.pauseT += dt;
+            s.boat.mesh.userData.hullMat.emissive.setHex(state.theme.lanternHex);
+            s.boat.mesh.userData.hullMat.emissiveIntensity = 0.48 * Math.sin((s.boat.pauseT / 0.26) * Math.PI);
+
+            if (s.boat.pauseT >= 0.26) {
+              const boat = s.boat;
+              boat.mesh.userData.hullMat.emissive.setHex(boat.mesh.userData.baseEmissiveHex);
+              boat.mesh.userData.hullMat.emissiveIntensity = boat.mesh.userData.baseEmissiveInt;
+              sound.playDepart();
+              spawn3DRipple(WORLD.slipXs[i], WORLD.slipZ, 3.8, state.theme.lanternHex);
+              spawn3DSparkles(WORLD.slipXs[i], 0.55, WORLD.slipZ, 18, state.theme.lanternHex);
+
+              const depCurve = buildDepartureSpline(i);
+              state.sailingBoats.push({
+                kind: 'to_sea',
+                boatId: boat.id,
+                slipIdx: i,
+                mesh: boat.mesh,
+                curve: depCurve,
+                t: 0,
+                dur: 1.05,
+                prevYaw: boat.mesh.rotation.y,
+                wakeAcc: 0
+              });
+
+              s.state = 'empty';
+              s.boat = null;
+              tickMooringChains();
+              checkWinCondition();
+            }
+          }
+        }
+
+        // 6. Promenade Queue Stepping & Automatic Guest Boarding
+        for (let i = 0; i < queueMeshes.length; i++) {
+          const qm = queueMeshes[i];
+          if (qm.userData.targetPos) {
+            qm.position.lerp(qm.userData.targetPos, Math.min(1, dt * 11));
+          }
+          qm.position.y = WORLD.promY + 0.06 + Math.abs(Math.sin(timeSec * 2.4 + i * 0.7)) * 0.03;
+          if (qm.userData.baseMat) {
+            const leadBoost = (i === 0) ? (0.18 + 0.16 * Math.sin(timeSec * 6.5)) : 0;
+            qm.userData.baseMat.emissiveIntensity = qm.userData.baseEmissiveInt + leadBoost;
+          }
+        }
+
+        if (state.started && state.queue.length > 0) {
+          state.boardCooldown = Math.max(0, state.boardCooldown - dt);
+          if (state.boardCooldown <= 0) {
+            const frontColor = state.queue[0];
+            let matchSlipIdx = -1;
+            for (let i = 0; i < state.slips.length; i++) {
+              const s = state.slips[i];
+              if (!s.locked && s.state === 'docked' && s.boat && s.boat.color === frontColor && s.boat.reservedSeats < s.boat.capacity) {
+                matchSlipIdx = i;
+                break;
+              }
+            }
+
+            if (matchSlipIdx !== -1) {
+              const s = state.slips[matchSlipIdx];
+              const seatIdx = s.boat.reservedSeats;
+              s.boat.reservedSeats++;
+              state.queue.shift();
+
+              const hopMesh = create3DGuestMesh(frontColor);
+              const startPos = getPromenadeQueuePos(0);
+              hopMesh.position.copy(startPos);
+              effectsGroup.add(hopMesh);
+
+              state.hoppingGuests.push({
+                mesh: hopMesh,
+                slipIdx: matchSlipIdx,
+                boatId: s.boat.id,
+                seatIdx: seatIdx,
+                startPos: startPos.clone(),
+                t: 0,
+                dur: 0.34
+              });
+
+              shiftQueueVisuals();
+              state.boardCooldown = 0.13;
+              state.fullCheckDelay = 0;
+            } else {
+              const activeSlips = state.slips.filter(function (s) { return !s.locked; });
+              const allOccupiedDocked = activeSlips.every(function (s) { return s.state === 'docked'; });
+              if (allOccupiedDocked && state.sailingBoats.length === 0 && state.hoppingGuests.length === 0) {
+                state.fullCheckDelay += dt;
+                if (state.fullCheckDelay >= 0.45) {
+                  state.fullCheckDelay = 0;
+                  checkHarborFull();
+                }
+              } else {
+                state.fullCheckDelay = 0;
+              }
+            }
+          }
+        }
+
+        // 7. Parabolic 3D Hopping Guests with Squash & Stretch
+        for (let i = state.hoppingGuests.length - 1; i >= 0; i--) {
+          const hg = state.hoppingGuests[i];
+          hg.t += dt / hg.dur;
+          const slip = state.slips[hg.slipIdx];
+          if (!slip || !slip.boat || slip.boat.id !== hg.boatId || !slip.boat.mesh) {
+            effectsGroup.remove(hg.mesh);
+            state.hoppingGuests.splice(i, 1);
+            continue;
+          }
+
+          const localSeat = slip.boat.mesh.userData.seatLocals[hg.seatIdx];
+          const endPos = localSeat.clone().applyMatrix4(slip.boat.mesh.userData.body.matrixWorld);
+          const u = Math.min(1, hg.t);
+          const arcY = Math.sin(u * Math.PI) * 1.35;
+
+          hg.mesh.position.lerpVectors(hg.startPos, endPos, u);
+          hg.mesh.position.y += arcY;
+          const stretch = 1 + Math.sin(u * Math.PI) * 0.24;
+          hg.mesh.scale.set(0.86 / Math.sqrt(stretch), 0.86 * stretch, 0.86 / Math.sqrt(stretch));
+
+          if (hg.t >= 1) {
+            effectsGroup.remove(hg.mesh);
+            hg.mesh.position.copy(localSeat);
+            hg.mesh.scale.set(1.05, 0.65, 1.05);
+            hg.mesh.userData.squashRecover = 1.0;
+            slip.boat.mesh.userData.seatedGroup.add(hg.mesh);
+
+            slip.boat.filled++;
+            slip.boat.dip = 0.2;
+            slip.boat.rockVel = 1.2;
+            state.guestsBoarded++;
+            sound.playBoard(slip.boat.filled - 1);
+            spawn3DRipple(endPos.x, endPos.z, 1.9, state.theme.lanternHex);
+            updateHUD();
+
+            if (slip.boat.filled >= slip.boat.capacity) {
+              slip.state = 'full_pause';
+              slip.boat.pauseT = 0;
+            }
+            state.hoppingGuests.splice(i, 1);
+          }
+        }
+
+        // Recover seated guest landing squash
+        for (let si = 0; si < state.slips.length; si++) {
+          const s = state.slips[si];
+          if (s.boat && s.boat.mesh) {
+            const kids = s.boat.mesh.userData.seatedGroup.children;
+            for (let ki = 0; ki < kids.length; ki++) {
+              const g = kids[ki];
+              if (g.userData.squashRecover > 0) {
+                g.userData.squashRecover = Math.max(0, g.userData.squashRecover - dt * 5.5);
+                g.scale.lerp(new THREE.Vector3(0.84, 0.84, 0.84), Math.min(1, dt * 14));
+              }
+            }
+          }
+        }
+
+        // 8. Flying Canvas Tarps
+        for (let i = state.flyingTarps.length - 1; i >= 0; i--) {
+          const ft = state.flyingTarps[i];
+          ft.life -= dt * 1.15;
+          ft.mesh.position.x += ft.vx * dt;
+          ft.mesh.position.y += ft.vy * dt;
+          ft.mesh.position.z += ft.vz * dt;
+          ft.vy -= 4.2 * dt;
+          ft.mesh.rotation.x += ft.rx * dt;
+          ft.mesh.rotation.z += ft.rz * dt;
+          ft.mesh.scale.setScalar(Math.max(0.01, ft.life));
+          if (ft.life <= 0) {
+            effectsGroup.remove(ft.mesh);
+            state.flyingTarps.splice(i, 1);
+          }
+        }
+
+        // 9. Ripples, Foam Wakes & Sparkles
+        for (let i = state.ripples3D.length - 1; i >= 0; i--) {
+          const rp = state.ripples3D[i];
+          rp.life -= dt * 1.15;
+          rp.scale += (rp.maxScale - rp.scale) * Math.min(1, dt * 4.5);
+          rp.mesh.scale.set(rp.scale, rp.scale, 1);
+          rp.mat.opacity = Math.max(0, rp.life * 0.58);
+          if (rp.life <= 0) {
+            effectsGroup.remove(rp.mesh);
+            rp.mat.dispose();
+            state.ripples3D.splice(i, 1);
+          }
+        }
+
+        for (let i = state.wakes3D.length - 1; i >= 0; i--) {
+          const w = state.wakes3D[i];
+          w.life -= dt * 1.5;
+          w.mesh.position.x += w.vx * dt;
+          w.mesh.position.z += w.vz * dt;
+          const sc = 1 + (1 - w.life) * 1.6;
+          w.mesh.scale.set(sc, 0.25, sc);
+          w.mat.opacity = Math.max(0, w.life * 0.45);
+          if (w.life <= 0) {
+            effectsGroup.remove(w.mesh);
+            w.mat.dispose();
+            state.wakes3D.splice(i, 1);
+          }
+        }
+
+        for (let i = state.sparkles3D.length - 1; i >= 0; i--) {
+          const sp = state.sparkles3D[i];
+          sp.life -= dt * 1.25;
+          sp.mesh.position.x += sp.vx * dt;
+          sp.mesh.position.y += sp.vy * dt;
+          sp.mesh.position.z += sp.vz * dt;
+          sp.vy -= 3.6 * dt;
+          sp.mesh.rotation.y += dt * 4;
+          sp.mesh.scale.setScalar(Math.max(0.01, sp.life));
+          sp.mat.opacity = Math.max(0, sp.life);
+          if (sp.life <= 0) {
+            effectsGroup.remove(sp.mesh);
+            sp.mat.dispose();
+            state.sparkles3D.splice(i, 1);
+          }
+        }
+
+        // 10. Environment: Lighthouse beam, lantern flicker, drifting motes
+        if (lhBeamPivot) lhBeamPivot.rotation.y += dt * 0.36;
+        for (let i = 0; i < pierLights.length; i++) {
+          pierLights[i].intensity = 1.45 + Math.sin(timeSec * 2.8 + i * 2.1) * 0.14;
+        }
+        if (reserveGhostMat) reserveGhostMat.opacity = 0.16 + 0.08 * Math.sin(timeSec * 2.5);
+
+        const isPetal = state.theme.moteMode === 'petal';
+        for (let i = 0; i < moteData.length; i++) {
+          const m = moteData[i];
+          m.x += m.vx * dt + Math.sin(timeSec * 0.7 + m.phase) * 0.14 * dt;
+          m.y += (isPetal ? -m.vy : m.vy * 0.45) * dt;
+          m.z += m.vz * dt;
+          if (m.y > 5.0) m.y = 0.25;
+          if (m.y < 0.15) m.y = 4.8;
+          if (m.x > 9.5) m.x = -9.5;
+          if (m.x < -9.5) m.x = 9.5;
+          m.mesh.position.set(m.x, m.y, m.z);
+          if (isPetal) {
+            m.mesh.rotation.x += m.rotSpd * dt;
+            m.mesh.rotation.y += m.rotSpd * 0.7 * dt;
+            m.mesh.scale.set(1.4, 0.75, 1);
+          } else {
+            m.mesh.lookAt(camera.position);
+            m.mesh.scale.setScalar(0.45 + 0.55 * Math.sin(timeSec * 2.0 + m.phase));
+          }
+        }
+
+        updateSightline3D();
+      }
+
+      function updateSightline3D() {
+        if (!sightlineMesh) return;
+        if (state.hoveredBoatId === -1) {
+          sightlineMesh.visible = false;
+          return;
+        }
+        const boat = state.boats.find(function (b) { return b.id === state.hoveredBoatId && b.state === 'idle'; });
+        if (!boat) {
+          sightlineMesh.visible = false;
+          return;
+        }
+
+        const blocker = findFirstBlocker(boat, state.boats, state.pilings, state.gridSize);
+        const d = DIRS[boat.dir];
+        const bowCell = cellToWorld(boat.r + d.dr * (boat.len - 0.5), boat.c + d.dc * (boat.len - 0.5));
+        const halfExtent = (state.gridSize * WORLD.cellSize) * 0.5 + 0.6;
+        const THREE = window.THREE;
+
+        let endPt;
+        if (blocker) {
+          const bp = blocker.type === 'piling' ? cellToWorld(blocker.obj.r, blocker.obj.c) : boatGridCenter(blocker.obj);
+          endPt = new THREE.Vector3(
+            d.dc !== 0 ? bp.x - d.dc * 0.5 : bowCell.x,
+            0,
+            d.dr !== 0 ? bp.z - d.dr * 0.5 : bowCell.z
+          );
+        } else {
+          endPt = new THREE.Vector3(
+            d.dc > 0 ? halfExtent : (d.dc < 0 ? -halfExtent : bowCell.x),
+            0,
+            d.dr > 0 ? WORLD.gridCenterZ + halfExtent : (d.dr < 0 ? WORLD.channelZ : bowCell.z)
+          );
+        }
+
+        const len = Math.max(0.25, bowCell.distanceTo(endPt));
+        sightlineMesh.visible = true;
+        sightlineMesh.scale.set(1, len, 1);
+        sightlineMesh.position.set((bowCell.x + endPt.x) * 0.5, 0.08, (bowCell.z + endPt.z) * 0.5);
+        sightlineMesh.rotation.z = (d.dc !== 0) ? Math.PI / 2 : 0;
+        sightlineMat.color.setHex(blocker ? 0xf06d59 : state.theme.lanternHex);
+      }
+
+      /* =========================================================================
+         14. PROJECTED 3D HTML BADGES & WIN / HARBOR FULL CHECKS
+         ========================================================================= */
+      function updateProjectedLabels() {
+        if (!state.sceneReady || !dom.labelsLayer) return;
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+        let html = '';
+
+        for (let i = 0; i < state.boats.length; i++) {
+          const b = state.boats[i];
+          if (!b.mesh) continue;
+          if (b.lockCount > 0) {
+            projVec.set(b.mesh.position.x, b.mesh.position.y + 0.82, b.mesh.position.z);
+            projVec.project(camera);
+            if (projVec.z < 1) {
+              const sx = (projVec.x * 0.5 + 0.5) * w;
+              const sy = (-projVec.y * 0.5 + 0.5) * h;
+              html += '<div class="lock-badge" style="left:' + sx.toFixed(1) + 'px;top:' + sy.toFixed(1) + 'px;">' + b.lockCount + '</div>';
+            }
+          } else if (state.highContrastSymbols && !b.mystery) {
+            const c = HULL_COLORS[b.color];
+            projVec.set(b.mesh.position.x, b.mesh.position.y + 0.72, b.mesh.position.z);
+            projVec.project(camera);
+            if (projVec.z < 1) {
+              const sx = (projVec.x * 0.5 + 0.5) * w;
+              const sy = (-projVec.y * 0.5 + 0.5) * h;
+              const borderCol = c.darkTrim ? '#161B26' : 'rgba(255,255,255,0.95)';
+              html += '<div class="symbol-badge" style="left:' + sx.toFixed(1) + 'px;top:' + sy.toFixed(1) + 'px;background:' + c.badgeBg + ';border-color:' + borderCol + ';">' + getEmblemSvg(c.emblem, c.badgeFg) + '</div>';
+            }
+          }
+        }
+
+        if (state.highContrastSymbols) {
+          for (let i = 0; i < state.slips.length; i++) {
+            const s = state.slips[i];
+            if (!s.locked && s.boat && s.boat.mesh && s.state !== 'incoming') {
+              const c = HULL_COLORS[s.boat.color];
+              projVec.set(WORLD.slipXs[i], 0.85, WORLD.slipZ);
+              projVec.project(camera);
+              if (projVec.z < 1) {
+                const sx = (projVec.x * 0.5 + 0.5) * w;
+                const sy = (-projVec.y * 0.5 + 0.5) * h;
+                const borderCol = c.darkTrim ? '#161B26' : 'rgba(255,255,255,0.95)';
+                html += '<div class="symbol-badge" style="left:' + sx.toFixed(1) + 'px;top:' + sy.toFixed(1) + 'px;background:' + c.badgeBg + ';border-color:' + borderCol + ';">' + getEmblemSvg(c.emblem, c.badgeFg) + '</div>';
+              }
+            }
+          }
+
+          let lastQCol = -1;
+          const maxQ = Math.min(queueMeshes.length, 10);
+          for (let i = 0; i < maxQ; i++) {
+            const qCol = state.queue[i];
+            if (qCol === undefined || qCol === lastQCol) continue;
+            lastQCol = qCol;
+            const c = HULL_COLORS[qCol];
+            const qm = queueMeshes[i];
+            projVec.set(qm.position.x, qm.position.y + 0.85, qm.position.z);
+            projVec.project(camera);
+            if (projVec.z < 1) {
+              const sx = (projVec.x * 0.5 + 0.5) * w;
+              const sy = (-projVec.y * 0.5 + 0.5) * h;
+              const borderCol = c.darkTrim ? '#161B26' : 'rgba(255,255,255,0.95)';
+              html += '<div class="symbol-badge queue-badge" style="left:' + sx.toFixed(1) + 'px;top:' + sy.toFixed(1) + 'px;background:' + c.badgeBg + ';border-color:' + borderCol + ';">' + getEmblemSvg(c.emblem, c.badgeFg) + '</div>';
+            }
+          }
+        }
+
+        if (!state.reserveUnlocked && state.started) {
+          projVec.set(WORLD.slipXs[5], 0.35, WORLD.slipZ);
+          projVec.project(camera);
+          if (projVec.z < 1) {
+            const sx = (projVec.x * 0.5 + 0.5) * w;
+            const sy = (-projVec.y * 0.5 + 0.5) * h;
+            html += '<div class="reserve-tag" style="left:' + sx.toFixed(1) + 'px;top:' + sy.toFixed(1) + 'px;">+ Reserve</div>';
+          }
+        }
+
+        dom.labelsLayer.innerHTML = html;
+      }
+
+      function checkHarborFull() {
+        if (!state.started || state.queue.length === 0) return;
+        if (state.sailingBoats.length > 0 || state.hoppingGuests.length > 0) return;
+        const activeSlips = state.slips.filter(function (s) { return !s.locked; });
+        if (activeSlips.some(function (s) { return s.state !== 'docked'; })) return;
+
+        const frontColor = state.queue[0];
+        const hasMatch = activeSlips.some(function (s) {
+          return s.boat && s.boat.color === frontColor && s.boat.reservedSeats < s.boat.capacity;
+        });
+        if (!hasMatch && !dom.fullModal.classList.contains('open')) {
+          dom.btnFullReserve.style.display = state.reserveUnlocked ? 'none' : 'block';
+          dom.btnFullUndo.style.display = state.undoStack.length > 0 ? 'block' : 'none';
+          openModal(dom.fullModal);
+        }
+      }
+
+      function checkWinCondition() {
+        if (!state.started) return;
+        if (state.boats.length > 0 || state.queue.length > 0 || state.hoppingGuests.length > 0) return;
+        if (state.slips.some(function (s) { return s.boat !== null; })) return;
+        if (state.sailingBoats.some(function (sb) { return sb.kind === 'to_slip'; })) return;
+        if (dom.winModal.classList.contains('open')) return;
+
+        sound.playWin();
+        if (state.mode === 'daily') safeSetStorage('slipway3d_daily_' + state.dateKey, '1');
+        updateHUD();
+
+        dom.winEyebrow.textContent = state.mode === 'daily' ? 'Daily Tide Complete' : 'Harbor Cleared';
+        dom.winTitle.textContent = getHarborDisplayName(state.mode, state.levelNum, state.dateKey);
+        dom.winGuests.textContent = String(state.totalGuests);
+
+        const lanternsLit = state.assistsUsed === 0 ? (state.reserveUnlocked ? 2 : 3) : 2;
+        dom.winFlow.textContent = lanternsLit === 3 ? 'Serene' : 'Gentle';
+        dom.winQuote.textContent = WIN_QUOTES[(state.levelNum - 1) % WIN_QUOTES.length];
+        dom.btnNextHarbor.textContent = state.mode === 'daily' ? 'Return to Journey' : 'Sail to Next Harbor';
+
+        const els = dom.winLanterns.querySelectorAll('.win-lantern');
+        els.forEach(function (el) { el.classList.remove('lit'); });
+        openModal(dom.winModal);
+        els.forEach(function (el, idx) {
+          if (idx < lanternsLit) {
+            setTimeout(function () { el.classList.add('lit'); }, 180 + idx * 170);
+          }
+        });
+      }
+
+      /* =========================================================================
+         15. CANVAS-ONLY 3D ORBIT, ZOOM & RAYCASTING (NEVER ON WINDOW/DOCUMENT)
+         ========================================================================= */
+      function updateCameraFraming() {
+        if (!state.sceneReady) return;
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+        renderer.setSize(w, h);
+        camera.aspect = w / Math.max(1, h);
+        camera.updateProjectionMatrix();
+
+        const aspect = w / Math.max(1, h);
+        const gridScale = state.gridSize === 5 ? 0 : (state.gridSize === 6 ? 1.4 : 2.8);
+        if (aspect < 0.72) {
+          camCtrl.baseRadius = 25.5 + (0.72 - aspect) * 18.0 + gridScale;
+          camCtrl.target.set(0, 0, -0.45);
+        } else {
+          camCtrl.baseRadius = 20.5 + gridScale;
+          camCtrl.target.set(0, 0, -0.35);
+        }
+        camCtrl.targetRadius = camCtrl.baseRadius;
+        camCtrl.radius = camCtrl.baseRadius;
+      }
+
+      function raycastScene(clientX, clientY) {
+        if (!state.sceneReady) return null;
+        const rect = dom.canvas.getBoundingClientRect();
+        pointerNdc.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+        pointerNdc.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+        raycaster.setFromCamera(pointerNdc, camera);
+
+        const targets = [];
+        for (let i = 0; i < state.boats.length; i++) {
+          const b = state.boats[i];
+          if (b.state === 'idle' && b.mesh) targets.push(b.mesh.userData.hitbox);
+        }
+        if (!state.reserveUnlocked && reserveGhost) targets.push(reserveGhost);
+
+        const hits = raycaster.intersectObjects(targets, false);
+        return hits.length > 0 ? hits[0].object.userData : null;
+      }
+
+      function attachCanvasControls() {
+        const activePointers = new Map();
+        let isDragging = false;
+        let downX = 0, downY = 0, lastX = 0, lastY = 0;
+        let pinchStartDist = 0;
+        let pinchStartRadius = 0;
+
+        // Strictly attached to <canvas> only
+        dom.canvas.addEventListener('pointerdown', function (e) {
+          if (!state.started) return;
+          sound.unlock();
+          activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+          if (activePointers.size === 1) {
+            isDragging = false;
+            downX = lastX = e.clientX;
+            downY = lastY = e.clientY;
+            const hit = raycastScene(e.clientX, e.clientY);
+            state.hoveredBoatId = (hit && hit.boatId) ? hit.boatId : -1;
+          } else if (activePointers.size === 2) {
+            isDragging = true;
+            state.hoveredBoatId = -1;
+            const pts = Array.from(activePointers.values());
+            pinchStartDist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
+            pinchStartRadius = camCtrl.targetRadius;
+          }
+        });
+
+        dom.canvas.addEventListener('pointermove', function (e) {
+          if (!state.started) return;
+          if (!activePointers.has(e.pointerId)) {
+            if (e.pointerType === 'mouse') {
+              const hit = raycastScene(e.clientX, e.clientY);
+              state.hoveredBoatId = (hit && hit.boatId) ? hit.boatId : -1;
+            }
+            return;
+          }
+
+          activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+          if (activePointers.size === 2) {
+            const pts = Array.from(activePointers.values());
+            const dist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
+            if (pinchStartDist > 10) {
+              const ratio = pinchStartDist / Math.max(10, dist);
+              camCtrl.targetRadius = Math.max(
+                camCtrl.baseRadius * 0.72,
+                Math.min(camCtrl.baseRadius * 1.32, pinchStartRadius * ratio)
+              );
+            }
+            return;
+          }
+
+          const dx = e.clientX - lastX;
+          const dy = e.clientY - lastY;
+          lastX = e.clientX;
+          lastY = e.clientY;
+
+          if (!isDragging && Math.hypot(e.clientX - downX, e.clientY - downY) > 10) {
+            isDragging = true;
+            state.hoveredBoatId = -1;
+          }
+
+          if (isDragging) {
+            camCtrl.targetAzimuth = Math.max(-0.62, Math.min(0.62, camCtrl.targetAzimuth - dx * 0.0055));
+            camCtrl.targetPolar = Math.max(0.56, Math.min(1.16, camCtrl.targetPolar - dy * 0.0045));
+          }
+        });
+
+        dom.canvas.addEventListener('pointerup', function (e) {
+          const wasSingle = activePointers.size === 1 && activePointers.has(e.pointerId);
+          activePointers.delete(e.pointerId);
+
+          if (state.started && wasSingle && !isDragging) {
+            const hit = raycastScene(e.clientX, e.clientY);
+            if (hit && hit.isReserveGhost) {
+              unlockReserveSlip();
+            } else if (hit && hit.boatId) {
+              const boat = state.boats.find(function (b) { return b.id === hit.boatId; });
+              if (boat) handleBoatTap(boat);
+            }
+          }
+          if (activePointers.size === 0) {
+            isDragging = false;
+            state.hoveredBoatId = -1;
+          }
+        });
+
+        dom.canvas.addEventListener('pointercancel', function (e) {
+          activePointers.delete(e.pointerId);
+          if (activePointers.size === 0) {
+            isDragging = false;
+            state.hoveredBoatId = -1;
+          }
+        });
+
+        dom.canvas.addEventListener('wheel', function (e) {
+          if (!state.started) return;
+          e.preventDefault();
+          const delta = Math.sign(e.deltaY) * 1.1;
+          camCtrl.targetRadius = Math.max(
+            camCtrl.baseRadius * 0.72,
+            Math.min(camCtrl.baseRadius * 1.32, camCtrl.targetRadius + delta)
+          );
+        }, { passive: false });
+      }
+
+      /* =========================================================================
+         16. ANIMATION LOOP
+         ========================================================================= */
+      let lastNow = 0;
+      let loopStarted = false;
+
+      function animate(now) {
+        requestAnimationFrame(animate);
+        if (!state.sceneReady) return;
+        if (!lastNow) lastNow = now;
+        const dt = Math.min(0.05, (now - lastNow) / 1000);
+        lastNow = now;
+        const timeSec = now * 0.001;
+
+        waterUniforms.uTime.value = timeSec;
+
+        camCtrl.azimuth += (camCtrl.targetAzimuth - camCtrl.azimuth) * Math.min(1, dt * 6.5);
+        camCtrl.polar += (camCtrl.targetPolar - camCtrl.polar) * Math.min(1, dt * 6.5);
+        camCtrl.radius += (camCtrl.targetRadius - camCtrl.radius) * Math.min(1, dt * 6.5);
+
+        const swayAz = camCtrl.azimuth + Math.sin(timeSec * 0.28) * 0.016;
+        const swayPol = camCtrl.polar + Math.cos(timeSec * 0.22) * 0.008;
+
+        camera.position.set(
+          camCtrl.target.x + camCtrl.radius * Math.sin(swayPol) * Math.sin(swayAz),
+          camCtrl.target.y + camCtrl.radius * Math.cos(swayPol),
+          camCtrl.target.z + camCtrl.radius * Math.sin(swayPol) * Math.cos(swayAz)
+        );
+        camera.lookAt(camCtrl.target);
+
+        updateSimulation(dt, timeSec);
+        renderer.render(scene, camera);
+        updateProjectedLabels();
+      }
+
+      /* =========================================================================
+         17. BULLETPROOF START BUTTON & UI WIRING (FIRST ON DOMCONTENTLOADED)
+         ========================================================================= */
+      function bindUIEvents() {
+        let lastStartTap = 0;
+
+        function enterHarbor(mode) {
+          const now = Date.now();
+          if (now - lastStartTap < 300) return;
+          lastStartTap = now;
+
+          // 1. Immediately dismiss title screen & reveal HUD
+          state.started = true;
+          if (dom.titleScreen) dom.titleScreen.style.display = 'none';
+          if (dom.hud) dom.hud.classList.add('visible');
+          hideAllModals();
+
+          // 2. Safely unlock audio
+          try { sound.unlock(); } catch (_) {}
+
+          // 3. Load requested mode (or start existing harbor)
+          try {
+            if (mode === 'daily') {
+              loadHarbor('daily', state.levelNum);
+            } else if (state.boats.length === 0 || state.mode !== 'journey') {
+              loadHarbor('journey', state.levelNum);
+            }
+            sound.playUnwrap();
+          } catch (_) {}
+        }
+
+        dom.btnStartJourney.addEventListener('click', function () {
+          enterHarbor('journey');
+        });
+
+        dom.btnDailyTide.addEventListener('click', function () {
+          enterHarbor('daily');
+        });
+
+        dom.btnRecenter.addEventListener('click', function () {
+          sound.unlock();
+          if (camCtrl) {
+            camCtrl.targetAzimuth = 0;
+            camCtrl.targetPolar = 0.86;
+            camCtrl.targetRadius = camCtrl.baseRadius;
+          }
+          showToast('Camera recentered');
+        });
+
+        dom.btnAudio.addEventListener('click', function () {
+          sound.unlock();
+          const on = sound.toggleMasterMute();
+          syncAudioUI();
+          showToast(on ? 'Soundscape on' : 'Soundscape muted');
+        });
+
+        dom.btnSettings.addEventListener('click', function () {
+          sound.unlock();
+          renderPaletteChips();
+          syncAudioUI();
+          openModal(dom.settingsModal);
+        });
+
+        dom.btnSettingsClose.addEventListener('click', hideAllModals);
+
+        dom.toggleSfx.addEventListener('click', function () {
+          sound.unlock();
+          sound.setSfx(!sound.sfxEnabled);
+          syncAudioUI();
+        });
+
+        dom.toggleWaves.addEventListener('click', function () {
+          sound.unlock();
+          sound.setWaves(!sound.wavesEnabled);
+          syncAudioUI();
+        });
+
+        dom.toggleSymbols.addEventListener('click', function () {
+          sound.unlock();
+          state.highContrastSymbols = !state.highContrastSymbols;
+          safeSetStorage('slipway3d_symbols', state.highContrastSymbols ? '1' : '0');
+          syncAudioUI();
+          showToast(state.highContrastSymbols ? 'Floating symbols on' : 'Floating symbols off');
+        });
+
+        dom.btnUndo.addEventListener('click', performUndo);
+        dom.btnReserve.addEventListener('click', unlockReserveSlip);
+
+        dom.btnRestart.addEventListener('click', function () {
+          sound.unlock();
+          openModal(dom.restartModal);
+        });
+
+        dom.btnRestartConfirm.addEventListener('click', function () {
+          sound.unlock();
+          sound.playUndo();
+          state.undoStack = [];
+          restoreSnapshot(state.initialSnapshot);
+          showToast('Harbor reset');
+        });
+
+        dom.btnRestartCancel.addEventListener('click', hideAllModals);
+
+        dom.btnDaily.addEventListener('click', function () {
+          sound.unlock();
+          state.started = true;
+          if (state.mode === 'daily') {
+            loadHarbor('journey', state.levelNum);
+            showToast('Returned to Journey Mode');
+          } else {
+            loadHarbor('daily', state.levelNum);
+            showToast('Loaded Daily Tide (' + state.dateKey + ')');
+          }
+        });
+
+        dom.btnFullUndo.addEventListener('click', performUndo);
+        dom.btnFullReserve.addEventListener('click', unlockReserveSlip);
+        dom.btnFullAssist.addEventListener('click', callNextMatchAssist);
+        dom.btnFullRestart.addEventListener('click', function () {
+          sound.unlock();
+          sound.playUndo();
+          state.undoStack = [];
+          restoreSnapshot(state.initialSnapshot);
+        });
+
+        dom.btnNextHarbor.addEventListener('click', function () {
+          sound.unlock();
+          if (state.mode === 'daily') loadHarbor('journey', state.levelNum);
+          else loadHarbor('journey', state.levelNum + 1);
+        });
+      }
+
+      function ensureThreeAndBoot() {
+        function boot3D() {
+          try {
+            initEngine();
+            loadHarbor(state.mode, state.levelNum);
+            if (!loopStarted) {
+              loopStarted = true;
+              requestAnimationFrame(animate);
+            }
+          } catch (_) {
+            showToast('WebGL unavailable on this device');
+          }
+        }
+
+        if (window.THREE) {
+          boot3D();
+        } else {
+          const fallback = document.createElement('script');
+          fallback.src = 'https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js';
+          fallback.onload = boot3D;
+          fallback.onerror = function () {
+            showToast('Could not load 3D engine — check connection');
+          };
+          document.head.appendChild(fallback);
+        }
+      }
+
+      document.addEventListener('DOMContentLoaded', function () {
+        dom = {
+          canvas: document.getElementById('webgl-canvas'),
+          labelsLayer: document.getElementById('floating-labels'),
+          hud: document.getElementById('hud'),
+          hudTitle: document.getElementById('hud-title'),
+          hudModePill: document.getElementById('hud-mode-pill'),
+          hudProgressFill: document.getElementById('hud-progress-fill'),
+          hudProgressText: document.getElementById('hud-progress-text'),
+          btnRecenter: document.getElementById('btn-recenter'),
+          btnAudio: document.getElementById('btn-audio'),
+          iconAudioOn: document.getElementById('icon-audio-on'),
+          iconAudioOff: document.getElementById('icon-audio-off'),
+          btnSettings: document.getElementById('btn-settings'),
+          btnUndo: document.getElementById('btn-undo'),
+          btnReserve: document.getElementById('btn-reserve'),
+          btnRestart: document.getElementById('btn-restart'),
+          btnDaily: document.getElementById('btn-daily'),
+          btnDailyLabel: document.getElementById('btn-daily-label'),
+          dailyDot: document.getElementById('daily-dot'),
+          toast: document.getElementById('toast'),
+          titleScreen: document.getElementById('title-screen'),
+          btnStartJourney: document.getElementById('btn-start-journey'),
+          btnDailyTide: document.getElementById('btn-daily-tide'),
+          fullModal: document.getElementById('full-modal'),
+          restartModal: document.getElementById('restart-modal'),
+          winModal: document.getElementById('win-modal'),
+          settingsModal: document.getElementById('settings-modal'),
+          btnFullUndo: document.getElementById('btn-full-undo'),
+          btnFullReserve: document.getElementById('btn-full-reserve'),
+          btnFullAssist: document.getElementById('btn-full-assist'),
+          btnFullRestart: document.getElementById('btn-full-restart'),
+          btnRestartConfirm: document.getElementById('btn-restart-confirm'),
+          btnRestartCancel: document.getElementById('btn-restart-cancel'),
+          btnNextHarbor: document.getElementById('btn-next-harbor'),
+          btnSettingsClose: document.getElementById('btn-settings-close'),
+          paletteGrid: document.getElementById('palette-grid'),
+          toggleSfx: document.getElementById('toggle-sfx'),
+          toggleWaves: document.getElementById('toggle-waves'),
+          toggleSymbols: document.getElementById('toggle-symbols'),
+          winEyebrow: document.getElementById('win-eyebrow'),
+          winTitle: document.getElementById('win-title'),
+          winLanterns: document.getElementById('win-lanterns'),
+          winGuests: document.getElementById('win-guests'),
+          winFlow: document.getElementById('win-flow'),
+          winQuote: document.getElementById('win-quote')
+        };
+
+        // 1. Attach UI button listeners FIRST before any WebGL, Three.js, or Audio init
+        bindUIEvents();
+        syncAudioUI();
+        renderPaletteChips();
+        renderColorKey();
+
+        // 2. Responsive resize handling
+        window.addEventListener('resize', updateCameraFraming);
+        window.addEventListener('orientationchange', function () {
+          setTimeout(updateCameraFraming, 140);
+        });
+      });
+
+      window.onload = function () {
+        ensureThreeAndBoot();
+      };
+    })();
+  </script>
+</body>
+</html>
